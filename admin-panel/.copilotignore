@@ -1,0 +1,19 @@
+# Ignore auto-generated files
+*.md
+*.ps1
+*_prisma.ts
+*_new.ts
+*_new_prisma.ts
+setup-database.js
+test-*.js
+docs/
+BASELINE-*
+CLEANUP-*
+COPILOT-*
+DASHBOARD-*
+FINAL-*
+INCOMPLETE-*
+PROJECT-*
+ROOT-*
+SAFE-*
+VS-CODE-*

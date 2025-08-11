@@ -1,0 +1,961 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// مدل دسته‌بندی منو
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  nameEn      String?
+  nameAr      String?
+  description String?
+  image       String?
+  parentId    String?
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  menuItems   MenuItem[]
+  priority    Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("categories")
+}
+
+// مدل آیتم منو
+model MenuItem {
+  id              String     @id @default(cuid())
+  name            String
+  nameEn          String?
+  nameAr          String?
+  description     String?
+  category        Category   @relation(fields: [categoryId], references: [id])
+  categoryId      String
+  price           Float
+  discountPrice   Float?
+  images          String     @default("[]")       // JSON string of image URLs
+  ingredients     String     @default("[]")       // JSON string of ingredients
+  allergens       String     @default("[]")       // JSON string of allergens
+  preparationTime Int        // در دقیقه
+  calories        Int?
+  nutritionInfo   Json?
+  customizations  String     @default("[]")       // JSON string of customizations
+  availableHours  Json?
+  isAvailable     Boolean    @default(true)
+  isSpecial       Boolean    @default(false)
+  priority        Int        @default(0)
+  tags            String     @default("[]")       // JSON string of tags
+  rating          Float?     @default(0)
+  reviewCount     Int        @default(0)
+  soldCount       Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  orderItems      OrderItem[]
+
+  @@map("menu_items")
+  @@index([categoryId])
+  @@index([isAvailable])
+  @@index([isSpecial])
+  @@index([priority])
+}
+
+// مدل سفارش (برای ارتباط آینده)
+model Order {
+  id              Int         @id @default(autoincrement())
+  orderNumber     String      @unique @default(cuid())
+  customerName    String?
+  customerPhone   String?
+  customerAddress String?
+  customerId      String?
+  customer        Customer?   @relation(fields: [customerId], references: [id])
+  branchId        String?
+  branch          Branch?     @relation(fields: [branchId], references: [id])
+  tableNumber     Int?
+  status          String      @default("PENDING") // PENDING, CONFIRMED, PREPARING, READY, DELIVERED, CANCELLED
+  priority        String      @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  subtotal        Float       @default(0)
+  tax             Float       @default(0)
+  discountAmount  Float       @default(0)
+  totalAmount     Float
+  paymentMethod   String      @default("CASH") // CASH, CARD, DIGITAL, CREDIT
+  paymentStatus   String      @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED
+  tips            Float       @default(0)
+  cashReceived    Float?
+  refundAmount    Float       @default(0)
+  refundReason    String?
+  printStatus     String      @default("PENDING") // PENDING, PRINTED
+  notes           String?
+  items           OrderItem[]
+  deliveries      Delivery[]
+  completedAt     DateTime?
+  refundedAt      DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("orders")
+}
+
+// مدل آیتم سفارش
+model OrderItem {
+  id          Int      @id @default(autoincrement())
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     Int
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItemId  String
+  quantity    Int
+  price       Float
+  total       Float    @default(0)
+  status      String   @default("PENDING") // PENDING, PREPARING, COMPLETED
+  notes       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@map("order_items")
+}
+
+// مدل مشتری
+model Customer {
+  id            String            @id @default(cuid())
+  name          String
+  email         String?           @unique
+  phone         String            @unique
+  avatar        String?
+  dateOfBirth   String?
+  gender        String?
+  tier          String            @default("Bronze") // Bronze, Silver, Gold, Platinum
+  status        String            @default("Active") // Active, Inactive, Suspended
+  orders        Order[]
+  addresses     CustomerAddress[]
+  deliveryAddresses Address[]
+  preferences   CustomerPreferences?
+  stats         CustomerStats?
+  tags          CustomerTag[]
+  deliveries    Delivery[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@map("customers")
+  @@index([phone])
+  @@index([email])
+  @@index([tier])
+  @@index([status])
+}
+
+// مدل آدرس مشتری
+model CustomerAddress {
+  id         String   @id @default(cuid())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  title      String
+  address    String
+  city       String
+  district   String?
+  postalCode String?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("customer_addresses")
+  @@index([customerId])
+}
+
+// مدل تنظیمات مشتری
+model CustomerPreferences {
+  id                      String   @id @default(cuid())
+  customer                Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId              String   @unique
+  favoriteItems           String   @default("[]") // JSON array of menu item IDs
+  allergies               String   @default("[]") // JSON array of allergies
+  dietaryRestrictions     String   @default("[]") // JSON array of dietary restrictions
+  preferredPaymentMethod  String?
+  deliveryInstructions    String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("customer_preferences")
+}
+
+// مدل آمار مشتری
+model CustomerStats {
+  id                String   @id @default(cuid())
+  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId        String   @unique
+  totalOrders       Int      @default(0)
+  totalSpent        Float    @default(0)
+  averageOrderValue Float    @default(0)
+  lastOrderDate     String?
+  favoriteCategory  String?
+  loyaltyPoints     Int      @default(0)
+  lifetimeValue     Float    @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("customer_stats")
+}
+
+// مدل برچسب مشتری
+model CustomerTag {
+  id         String   @id @default(cuid())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  name       String
+  createdAt  DateTime @default(now())
+
+  @@map("customer_tags")
+  @@index([customerId])
+}
+
+// مدل میز
+model Table {
+  id          String       @id @default(cuid())
+  number      String       @unique
+  capacity    Int
+  location    String
+  type        TableType    @default(INDOOR)
+  status      TableStatus  @default(AVAILABLE)
+  isActive    Boolean      @default(true)
+  qrCode      String?
+  description String?
+  reservations Reservation[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("tables")
+  @@index([status])
+  @@index([type])
+  @@index([isActive])
+}
+
+// انواع میز
+enum TableType {
+  INDOOR
+  OUTDOOR
+  VIP
+}
+
+// وضعیت میز
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+}
+
+// مدل رزرو (برای ارتباط آینده)
+model Reservation {
+  id           String            @id @default(cuid())
+  table        Table             @relation(fields: [tableId], references: [id])
+  tableId      String
+  customerName String
+  customerPhone String
+  customerEmail String?
+  partySize    Int
+  reservationDate DateTime
+  startTime    DateTime
+  endTime      DateTime?
+  status       ReservationStatus @default(PENDING)
+  notes        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@map("reservations")
+  @@index([tableId])
+  @@index([reservationDate])
+  @@index([status])
+}
+
+// وضعیت رزرو
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+// مدل انبار - کالاها و مواد اولیه
+model InventoryItem {
+  id                String             @id @default(cuid())
+  name              String
+  nameEn            String?
+  nameAr            String?
+  description       String?
+  category          InventoryCategory  @relation(fields: [categoryId], references: [id])
+  categoryId        String
+  sku               String             @unique  // کد کالا
+  unit              String             // واحد اندازه‌گیری (کیلوگرم، لیتر، عدد)
+  currentStock      Float              @default(0)
+  minStock          Float              @default(0)
+  maxStock          Float              @default(0)
+  reorderPoint      Float              @default(0)  // نقطه سفارش مجدد
+  price             Float              @default(0)  // قیمت خرید
+  averageCost       Float              @default(0)  // میانگین قیمت
+  supplier          String?            // تامین کننده
+  supplierCode      String?            // کد تامین کننده
+  lastRestockDate   DateTime?          // آخرین تاریخ تامین
+  expiryDate        DateTime?          // تاریخ انقضا
+  batchNumber       String?            // شماره دسته
+  barcode           String?            // بارکد
+  location          String?            // موقعیت در انبار
+  status            InventoryStatus    @default(IN_STOCK)
+  autoReorder       Boolean            @default(false)
+  isActive          Boolean            @default(true)
+  movements         StockMovement[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@map("inventory_items")
+  @@index([categoryId])
+  @@index([status])
+  @@index([currentStock])
+  @@index([minStock])
+  @@index([expiryDate])
+}
+
+// دسته‌بندی انبار
+model InventoryCategory {
+  id          String          @id @default(cuid())
+  name        String
+  nameEn      String?
+  nameAr      String?
+  description String?
+  parentId    String?
+  parent      InventoryCategory? @relation("InventoryCategoryHierarchy", fields: [parentId], references: [id])
+  children    InventoryCategory[] @relation("InventoryCategoryHierarchy")
+  items       InventoryItem[]
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("inventory_categories")
+}
+
+// حرکات انبار
+model StockMovement {
+  id          String         @id @default(cuid())
+  item        InventoryItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId      String
+  type        MovementType
+  quantity    Float
+  previousStock Float         // موجودی قبلی
+  newStock    Float         // موجودی جدید
+  unitPrice   Float?        // قیمت واحد
+  totalValue  Float?        // ارزش کل
+  reason      String?       // دلیل حرکت
+  reference   String?       // شماره مرجع (فاکتور، سفارش، ...)
+  batchNumber String?       // شماره دسته
+  expiryDate  DateTime?     // تاریخ انقضا
+  supplier    String?       // تامین کننده
+  user        String        // کاربر ثبت کننده
+  notes       String?       // یادداشت
+  createdAt   DateTime      @default(now())
+
+  @@map("stock_movements")
+  @@index([itemId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// وضعیت موجودی
+enum InventoryStatus {
+  IN_STOCK      // موجود
+  LOW_STOCK     // کم موجود
+  OUT_OF_STOCK  // ناموجود
+  EXPIRED       // منقضی شده
+  DAMAGED       // آسیب دیده
+}
+
+// نوع حرکت انبار
+enum MovementType {
+  IN           // ورود
+  OUT          // خروج
+  ADJUSTMENT   // تعدیل
+  TRANSFER     // انتقال
+  RETURN       // برگشت
+  WASTE        // ضایعات
+  EXPIRED      // انقضا
+}
+
+// مدل آدرس تحویل
+model Address {
+  id            String    @id @default(cuid())
+  street        String
+  city          String
+  state         String
+  postalCode    String
+  country       String    @default("ایران")
+  latitude      Float?
+  longitude     Float?
+  landmarks     String?
+  instructions  String?
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  isDefault     Boolean   @default(false)
+  pickupDeliveries  Delivery[] @relation("PickupAddress")
+  deliveryDeliveries Delivery[] @relation("DeliveryAddress")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("addresses")
+  @@index([customerId])
+  @@index([city])
+}
+
+// مدل پیک
+model Courier {
+  id              String        @id @default(cuid())
+  name            String
+  phone           String        @unique
+  email           String?
+  avatar          String?
+  vehicleType     VehicleType
+  vehicleNumber   String?
+  licenseNumber   String?
+  status          CourierStatus @default(OFFLINE)
+  rating          Float         @default(5.0)
+  totalDeliveries Int           @default(0)
+  currentLat      Float?
+  currentLng      Float?
+  locationUpdated DateTime?
+  deliveries      Delivery[]
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("couriers")
+  @@index([status])
+  @@index([vehicleType])
+}
+
+// مدل تحویل
+model Delivery {
+  id              String         @id @default(cuid())
+  orderId         Int
+  order           Order?         @relation(fields: [orderId], references: [id])
+  customerId      String
+  customer        Customer?      @relation(fields: [customerId], references: [id])
+  courierId       String?
+  courier         Courier?       @relation(fields: [courierId], references: [id])
+  type            DeliveryType
+  status          DeliveryStatus @default(PENDING)
+  
+  // آدرس‌ها
+  pickupAddressId   String
+  pickupAddress     Address       @relation("PickupAddress", fields: [pickupAddressId], references: [id])
+  deliveryAddressId String?
+  deliveryAddress   Address?      @relation("DeliveryAddress", fields: [deliveryAddressId], references: [id])
+  
+  // مسافت و زمان
+  distance        Float?         // کیلومتر
+  estimatedTime   Int?           // دقیقه
+  
+  // زمان‌بندی
+  scheduledAt     DateTime?
+  assignedAt      DateTime?
+  pickedUpAt      DateTime?
+  deliveredAt     DateTime?
+  
+  // هزینه
+  deliveryFee     Float
+  tip             Float          @default(0)
+  totalAmount     Float
+  
+  // اطلاعات تکمیلی
+  instructions    String?
+  notes           String?
+  priority        Int            @default(1)
+  
+  // ردیابی
+  trackingCode    String         @unique
+  signature       String?
+  proofImages     String         @default("[]") // JSON array
+  
+  // امتیاز
+  customerRating  Float?
+  courierRating   Float?
+  feedback        String?
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("deliveries")
+  @@index([status])
+  @@index([courierId])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([trackingCode])
+}
+
+// نوع وسیله نقلیه
+enum VehicleType {
+  BIKE
+  MOTORCYCLE
+  CAR
+  WALKING
+}
+
+// وضعیت پیک
+enum CourierStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+  ON_BREAK
+}
+
+// نوع تحویل
+enum DeliveryType {
+  DELIVERY
+  PICKUP
+  DINE_IN
+}
+
+// وضعیت تحویل
+enum DeliveryStatus {
+  PENDING
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  RETURNED
+  CANCELLED
+}
+
+// مدل کمپین بازاریابی
+model MarketingCampaign {
+  id              String              @id @default(cuid())
+  name            String
+  description     String?
+  type            CampaignType
+  category        CampaignCategory
+  status          CampaignStatus      @default(DRAFT)
+  isActive        Boolean             @default(true)
+  
+  // زمان‌بندی
+  startDate       DateTime
+  endDate         DateTime
+  
+  // بودجه
+  budget          Float
+  spent           Float               @default(0)
+  
+  // آمار
+  reach           Int                 @default(0)
+  impressions     Int                 @default(0)
+  clicks          Int                 @default(0)
+  conversions     Int                 @default(0)
+  conversionRate  Float               @default(0)
+  
+  // Target Audience (JSON)
+  targetAudience  Json
+  
+  // Content (JSON)
+  content         Json
+  
+  // Channels (JSON Array)
+  channels        String              @default("[]")
+  
+  // Relations
+  coupons         MarketingCoupon[]
+  analytics       CampaignAnalytics[]
+  segments        CustomerSegment[]
+  
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@map("marketing_campaigns")
+  @@index([status])
+  @@index([type])
+  @@index([category])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+// مدل کوپن بازاریابی
+model MarketingCoupon {
+  id              String              @id @default(cuid())
+  campaignId      String
+  campaign        MarketingCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  code            String              @unique
+  discountType    DiscountType
+  discountValue   Float
+  maxDiscount     Float?
+  minOrderAmount  Float?
+  
+  // استفاده
+  usageCount      Int                 @default(0)
+  maxUsage        Int?
+  maxUsagePerUser Int                 @default(1)
+  
+  // زمان‌بندی
+  validFrom       DateTime
+  validUntil      DateTime
+  
+  // وضعیت
+  isActive        Boolean             @default(true)
+  
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@map("marketing_coupons")
+  @@index([code])
+  @@index([campaignId])
+  @@index([validFrom])
+  @@index([validUntil])
+}
+
+// مدل آنالیتیکس کمپین
+model CampaignAnalytics {
+  id              String              @id @default(cuid())
+  campaignId      String
+  campaign        MarketingCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  date            DateTime
+  
+  // آمار روزانه
+  impressions     Int                 @default(0)
+  clicks          Int                 @default(0)
+  conversions     Int                 @default(0)
+  spend           Float               @default(0)
+  revenue         Float               @default(0)
+  
+  // نرخ‌ها
+  openRate        Float?
+  clickRate       Float?
+  conversionRate  Float?
+  unsubscribeRate Float?
+  roi             Float?
+  
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@map("campaign_analytics")
+  @@index([campaignId])
+  @@index([date])
+  @@unique([campaignId, date])
+}
+
+// مدل بخش‌بندی مشتریان
+model CustomerSegment {
+  id              String              @id @default(cuid())
+  campaignId      String?
+  campaign        MarketingCampaign?  @relation(fields: [campaignId], references: [id])
+  
+  name            String
+  description     String?
+  criteria        Json                // شرایط فیلتر
+  size            Int                 @default(0)
+  
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@map("customer_segments")
+  @@index([campaignId])
+  @@index([name])
+}
+
+// انواع کمپین
+enum CampaignType {
+  DISCOUNT
+  PRODUCT_LAUNCH
+  BRAND_AWARENESS
+  RETENTION
+  ACQUISITION
+  SEASONAL
+  EVENT
+}
+
+// دسته‌بندی کمپین
+enum CampaignCategory {
+  SEASONAL
+  NEW_PRODUCT
+  PROMOTION
+  LOYALTY
+  REFERRAL
+  EMAIL
+  SMS
+  SOCIAL_MEDIA
+  PUSH_NOTIFICATION
+}
+
+// وضعیت کمپین
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+// نوع تخفیف
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_SHIPPING
+  BUY_ONE_GET_ONE
+}
+
+// مدل کاربران
+model User {
+  id              String        @id @default(cuid())
+  username        String        @unique
+  email           String        @unique
+  password        String        // hashed password
+  firstName       String
+  lastName        String
+  avatar          String?
+  phone           String?
+  
+  // نقش و دسترسی
+  role            UserRole      @default(STAFF)
+  permissions     String        @default("[]") // JSON array
+  isActive        Boolean       @default(true)
+  isVerified      Boolean       @default(false)
+  
+  // اطلاعات اضافی
+  lastLoginAt     DateTime?
+  lastLoginIP     String?
+  loginAttempts   Int           @default(0)
+  lockedUntil     DateTime?
+  
+  // تنظیمات
+  language        String        @default("fa")
+  timezone        String        @default("Asia/Tehran")
+  twoFactorEnabled Boolean      @default(false)
+  twoFactorSecret String?
+  
+  // جلسات
+  sessions        UserSession[]
+  
+  // لاگ‌ها
+  auditLogs       AuditLog[]
+  
+  // روابط شعبه
+  managedBranches Branch[]      @relation("BranchManager")
+  branchStaff     BranchStaff[] @relation("BranchStaff")
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("users")
+  @@index([email])
+  @@index([username])
+  @@index([role])
+  @@index([isActive])
+}
+
+// مدل جلسات کاربری
+model UserSession {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token           String        @unique
+  refreshToken    String?       @unique
+  deviceInfo      String?       // JSON
+  ipAddress       String?
+  userAgent       String?
+  isActive        Boolean       @default(true)
+  expiresAt       DateTime
+  lastUsedAt      DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+
+  @@map("user_sessions")
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+// مدل لاگ حسابرسی
+model AuditLog {
+  id              String        @id @default(cuid())
+  userId          String?
+  user            User?         @relation(fields: [userId], references: [id])
+  action          String        // CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+  resource        String        // table/model name
+  resourceId      String?       // record ID
+  oldValues       Json?         // قبل از تغییر
+  newValues       Json?         // بعد از تغییر
+  ipAddress       String?
+  userAgent       String?
+  timestamp       DateTime      @default(now())
+
+  @@map("audit_logs")
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([timestamp])
+}
+
+// نقش‌های کاربری
+enum UserRole {
+  SUPER_ADMIN     // دسترسی کامل سیستم
+  ADMIN           // مدیر شعبه
+  MANAGER         // مدیر نوبت
+  CASHIER         // صندوقدار
+  KITCHEN_STAFF   // آشپز
+  WAITER          // گارسون
+  DELIVERY        // پیک
+  SUPPORT         // پشتیبانی
+  STAFF           // کارمند عادی
+}
+
+// مدل شعبه‌ها
+model Branch {
+  id              String   @id @default(cuid())
+  name            String
+  nameEn          String?
+  nameAr          String?
+  description     String?
+  
+  // اطلاعات تماس و آدرس
+  address         String
+  city            String
+  state           String?
+  postalCode      String?
+  country         String   @default("IR")
+  phone           String
+  email           String?
+  website         String?
+  
+  // موقعیت جغرافیایی
+  latitude        Float?
+  longitude       Float?
+  
+  // مدیریت
+  managerId       String
+  manager         User     @relation("BranchManager", fields: [managerId], references: [id])
+  
+  // وضعیت و تنظیمات
+  status          BranchStatus @default(ACTIVE)
+  timezone        String   @default("Asia/Tehran")
+  currency        String   @default("IRR")
+  
+  // ساعات کاری (JSON)
+  operatingHours  String   @default("[]") // JSON array of operating hours
+  
+  // تنظیمات عملیاتی
+  settings        BranchSettings?
+  
+  // روابط
+  staff           BranchStaff[]
+  orders          Order[]
+  
+  // متادیتا
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("branches")
+  @@index([managerId])
+  @@index([status])
+  @@index([city])
+}
+
+// تنظیمات شعبه
+model BranchSettings {
+  id                      String  @id @default(cuid())
+  branchId                String  @unique
+  branch                  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  
+  // تنظیمات سفارش
+  allowOnlineOrders       Boolean @default(true)
+  allowTableReservations  Boolean @default(true)
+  enableDelivery          Boolean @default(true)
+  enableTakeout           Boolean @default(true)
+  enableDineIn            Boolean @default(true)
+  autoAcceptOrders        Boolean @default(false)
+  
+  // تنظیمات مالی
+  taxRate                 Float   @default(0.09) // 9% VAT
+  serviceCharge           Float   @default(0.10) // 10% service
+  deliveryFee             Float   @default(50000) // تومان
+  minimumOrderAmount      Float   @default(100000) // حداقل سفارش
+  
+  // تنظیمات تحویل
+  deliveryRadius          Float   @default(10.0) // کیلومتر
+  avgDeliveryTime         Int     @default(30) // دقیقه
+  
+  // تنظیمات رزرو
+  maxTablesPerReservation Int     @default(1)
+  reservationTimeSlots    Int     @default(30) // دقیقه
+  
+  // روش‌های پرداخت (JSON)
+  paymentMethods          String  @default("[\"CASH\", \"CARD\"]")
+  
+  // تنظیمات چاپگر (JSON)
+  printerSettings         String  @default("{}")
+  
+  // برنامه وفاداری
+  loyaltyProgram          Boolean @default(false)
+  loyaltyPointsRate       Float   @default(0.01) // 1% cashback
+  
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("branch_settings")
+}
+
+// کارکنان شعبه
+model BranchStaff {
+  id          String   @id @default(cuid())
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation("BranchStaff", fields: [userId], references: [id], onDelete: Cascade)
+  
+  // نقش در شعبه
+  role        StaffRole @default(STAFF)
+  permissions String    @default("[]") // JSON array of permissions
+  
+  // زمان‌بندی (JSON)
+  schedule    String    @default("[]") // JSON array of weekly schedule
+  
+  // وضعیت
+  isActive    Boolean   @default(true)
+  startDate   DateTime  @default(now())
+  endDate     DateTime?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("branch_staff")
+  @@unique([branchId, userId])
+  @@index([branchId])
+  @@index([userId])
+}
+
+// enum وضعیت شعبه
+enum BranchStatus {
+  ACTIVE      // فعال
+  INACTIVE    // غیرفعال
+  MAINTENANCE // در حال تعمیر
+  CLOSED      // بسته شده
+}
+
+// enum نقش کارکنان شعبه
+enum StaffRole {
+  BRANCH_MANAGER
+  SHIFT_MANAGER  
+  CASHIER
+  CHEF
+  KITCHEN_STAFF
+  WAITER
+  DELIVERY_STAFF
+  CLEANER
+  SECURITY
+  STAFF
+}

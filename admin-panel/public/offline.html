@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>آفلاین - A-DROP Admin</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            max-width: 600px;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.8;
+        }
+        h1 {
+            margin: 0 0 1rem 0;
+            font-size: 2.5rem;
+            font-weight: 300;
+        }
+        p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        .retry-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .retry-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        .features {
+            margin-top: 2rem;
+            text-align: right;
+        }
+        .feature {
+            margin-bottom: 0.8rem;
+            opacity: 0.8;
+        }
+        .feature::before {
+            content: "✓";
+            margin-left: 8px;
+            color: #4ade80;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">📱</div>
+        <h1>در حالت آفلاین</h1>
+        <p>
+            در حال حاضر اتصال اینترنت شما برقرار نیست. نگران نباشید، همچنان می‌توانید از برخی امکانات پنل مدیریت استفاده کنید.
+        </p>
+        
+        <div class="features">
+            <div class="feature">مشاهده آمار کش شده</div>
+            <div class="feature">بررسی سفارشات ذخیره شده</div>
+            <div class="feature">مدیریت موجودی محلی</div>
+            <div class="feature">تنظیمات سیستم</div>
+        </div>
+        
+        <button class="retry-btn" onclick="location.reload()">
+            تلاش مجدد برای اتصال
+        </button>
+    </div>
+
+    <script>
+        // Check for online status
+        function checkOnline() {
+            if (navigator.onLine) {
+                location.reload();
+            }
+        }
+
+        // Listen for online events
+        window.addEventListener('online', checkOnline);
+        
+        // Periodic check every 30 seconds
+        setInterval(checkOnline, 30000);
+
+        // Service worker registration check
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', event => {
+                if (event.data.type === 'CONNECTIVITY_RESTORED') {
+                    location.reload();
+                }
+            });
+        }
+    </script>
+</body>
+</html>

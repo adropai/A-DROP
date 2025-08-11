@@ -1,0 +1,80 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# prisma
+/prisma/dev.db*
+
+# uploads
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# temporary test files
+add-sample-orders.js
+check-orders.js
+create-fixed-orders.js
+create-test-data.js
+debug-*.js
+full-db-check.js
+generate-hash.js
+silent-orders.js
+simple-*.js
+test-*.js
+
+# empty API routes
+/app/api/test/
+/app/api/debug/
+/app/api/kitchen/create-test*/
+
+# empty components and hooks
+/components/common/OptimizedPageLayout.tsx
+/components/common/OptimizedProTable.tsx
+/components/dashboard/KPICards.tsx
+/components/dashboard/LiveTables.tsx
+/components/dashboard/OptimizedCharts.tsx
+/components/dashboard/OptimizedQuickActions.tsx
+/components/LazyComponents.tsx
+/hooks/useDashboardData.ts
+/hooks/useOptimizedDashboard.ts
+
+# temporary files
+app/layout_fixed.tsx
+public/sw.js
+public/test-*.js
+types/dashboard.ts
+
+# VS Code settings (optional)
+.vscode/settings.json
+.vscode/tasks.json

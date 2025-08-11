@@ -1,0 +1,84 @@
+{
+  "name": "A-DROP Admin Dashboard",
+  "short_name": "A-DROP Admin",
+  "description": "پنل مدیریت رستوران A-DROP",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1890ff",
+  "orientation": "portrait",
+  "scope": "/",
+  "categories": ["business", "productivity", "food"],
+  "lang": "fa",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/icon-192x192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.svg",
+      "sizes": "512x512", 
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "سفارشات جدید",
+      "short_name": "سفارشات",
+      "description": "مشاهده سفارشات جدید",
+      "url": "/orders?filter=new",
+      "icons": [{ "src": "/shortcuts/orders.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "آمار فروش",
+      "short_name": "آمار",
+      "description": "مشاهده آمار فروش امروز",
+      "url": "/analytics?period=today",
+      "icons": [{ "src": "/shortcuts/analytics.png", "sizes": "96x96" }]
+    }
+  ],
+  "share_target": {
+    "action": "/share-target/",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "files",
+          "accept": ["image/*", "application/pdf"]
+        }
+      ]
+    }
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+adrop",
+      "url": "/handle-protocol?url=%s"
+    }
+  ],
+  "display_override": ["window-controls-overlay", "standalone", "fullscreen"],
+  "prefer_related_applications": false,
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Dashboard overview"
+    },
+    {
+      "src": "/screenshots/dashboard-narrow.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile dashboard"
+    }
+  ]
+}

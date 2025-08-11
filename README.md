@@ -1,0 +1,166 @@
+# 🍽️ A-DROP - سیستم جامع مدیریت رستوران
+
+## 📖 درباره پروژه
+
+A-DROP یک سیستم جامع مدیریت رستوران است که شامل:
+
+- 🎛️ **پنل ادمین** - مدیریت کامل رستوران
+- 🌐 **وب‌سایت** - نمایش منو و اطلاعات
+- 📱 **اپلیکیشن مشتری** - سفارش‌گیری آنلاین
+- 👨‍💼 **پنل سوپرادمین** - مدیریت چندین رستوران
+- 🤖 **AI Server** - هوش مصنوعی و تحلیل
+- 🔧 **Backend** - API و دیتابیس
+
+## 🏗️ ساختار پروژه
+
+```
+A-DROP/
+├── admin-panel/          # پنل مدیریت رستوران (Next.js + TypeScript)
+├── website/             # وب‌سایت رستوران (Next.js)
+├── customer-app/        # اپلیکیشن مشتری (React Native / PWA)
+├── superadmin-panel/    # پنل سوپرادمین (Next.js)
+├── backend/            # API Backend (Node.js + Prisma)
+├── ai-server/          # سرور هوش مصنوعی (Python/Node.js)
+└── docs/              # مستندات پروژه
+```
+
+## 🚀 شروع سریع
+
+### پیش‌نیازها
+- Node.js 18+
+- npm یا yarn
+- PostgreSQL (برای production)
+
+### نصب و راه‌اندازی
+
+1. **Clone کردن پروژه:**
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/A-DROP.git
+   cd A-DROP
+   ```
+
+2. **نصب dependencies:**
+   ```bash
+   # پنل ادمین
+   cd admin-panel
+   npm install
+   npm run dev
+   
+   # در terminal جدید - Backend
+   cd ../backend
+   npm install
+   npm run dev
+   
+   # در terminal جدید - Website
+   cd ../website
+   npm install
+   npm run dev
+   ```
+
+3. **تنظیم environment variables:**
+   ```bash
+   # در هر پوشه، فایل .env.local ایجاد کنید
+   cp .env.example .env.local
+   ```
+
+## 🎯 فیچرها
+
+### پنل ادمین
+- ✅ مدیریت منو و غذاها
+- ✅ سیستم سفارش‌گیری
+- ✅ مدیریت مشتریان
+- ✅ گزارش‌گیری و آنالیتیکس
+- ✅ مدیریت کارکنان
+- ✅ سیستم احراز هویت
+- ✅ مدیریت میزها و رزرو
+- ✅ سیستم پرداخت
+
+### Backend API
+- ✅ RESTful API
+- ✅ Authentication & Authorization
+- ✅ Database با Prisma ORM
+- ✅ Real-time notifications
+- ✅ File upload
+- ✅ Payment integration
+
+### AI Features
+- 🔄 تحلیل فروش
+- 🔄 پیش‌بینی تقاضا
+- 🔄 توصیه منو
+- 🔄 بهینه‌سازی قیمت
+
+## 🛠️ تکنولوژی‌های استفاده شده
+
+### Frontend
+- **Next.js 14** - React Framework
+- **TypeScript** - Type Safety
+- **Ant Design** - UI Components
+- **Tailwind CSS** - Styling
+- **Zustand** - State Management
+
+### Backend
+- **Node.js** - Runtime
+- **Prisma** - ORM
+- **PostgreSQL** - Database
+- **JWT** - Authentication
+
+### DevOps & Tools
+- **Git** - Version Control
+- **ESLint** - Code Quality
+- **Prettier** - Code Formatting
+
+## 📊 Performance
+
+### بهینه‌سازی‌های انجام شده:
+- ✅ Tree shaking برای کاهش bundle size
+- ✅ Lazy loading components
+- ✅ Image optimization
+- ✅ Code splitting
+- ✅ Cache strategies
+
+### Benchmarks:
+- **Development Server**: ~3-5 ثانیه startup
+- **Build Time**: ~30-45 ثانیه
+- **Bundle Size**: ~2-3 MB (optimized)
+
+## 🚦 مراحل توسعه
+
+### ✅ مرحله 1 - MVP (تکمیل شده)
+- پنل ادمین اصلی
+- سیستم authentication
+- مدیریت منو و سفارشات
+- Dashboard و آنالیتیکس پایه
+
+### 🔄 مرحله 2 - در حال توسعه
+- بهینه‌سازی performance
+- تست‌های جامع
+- Documentation کامل
+- Mobile responsiveness
+
+### 📋 مرحله 3 - آینده
+- اپلیکیشن موبایل
+- پنل سوپرادمین
+- AI features پیشرفته
+- Multi-tenant architecture
+
+## 🤝 مشارکت
+
+1. Fork کنید
+2. Branch جدید ایجاد کنید (`git checkout -b feature/amazing-feature`)
+3. Commit کنید (`git commit -m 'Add amazing feature'`)
+4. Push کنید (`git push origin feature/amazing-feature`)
+5. Pull Request ایجاد کنید
+
+## 📝 مجوز
+
+این پروژه تحت مجوز MIT منتشر شده است.
+
+## 📞 تماس
+
+برای سوالات و پشتیبانی:
+- Email: support@adrop.ir
+- GitHub Issues: [مشکلات](https://github.com/YOUR_USERNAME/A-DROP/issues)
+
+---
+
+**ساخته شده با ❤️ برای رستوران‌های ایران**
