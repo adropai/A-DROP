@@ -201,15 +201,32 @@ const KitchenPage: React.FC = () => {
       title: 'بخش',
       dataIndex: 'department',
       key: 'department',
-      width: 100,
+      width: 120,
       responsive: ['md'],
       render: (dept: Department) => {
         const display = DepartmentDisplay[dept];
         if (!display) return dept;
         return (
-          <Tag color={display.color}>
-            {display.icon} {display.name}
-          </Tag>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ 
+              fontSize: 24, 
+              marginBottom: 4,
+              color: display.color 
+            }}>
+              {display.icon}
+            </div>
+            <Tag 
+              color={display.color}
+              style={{ 
+                fontSize: '11px',
+                fontWeight: 500,
+                margin: 0,
+                padding: '2px 8px'
+              }}
+            >
+              {display.name}
+            </Tag>
+          </div>
         );
       }
     },
@@ -217,14 +234,34 @@ const KitchenPage: React.FC = () => {
       title: 'سفارش',
       dataIndex: 'order',
       key: 'order',
-      width: 120,
+      width: 140,
       render: (order: any) => (
-        <div>
-          <Text strong>#{order.orderNumber.slice(-6)}</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            {order.customerName || 'مشتری'}
+        <div style={{ lineHeight: 1.3 }}>
+          <Text strong style={{ 
+            fontSize: 14,
+            color: '#1890ff',
+            display: 'block'
+          }}>
+            #{order.orderNumber.slice(-6)}
           </Text>
+          <Text type="secondary" style={{ 
+            fontSize: '12px',
+            display: 'block',
+            marginTop: 2
+          }}>
+            {order.customerName || 'مشتری ناشناس'}
+          </Text>
+          <Tag 
+            color={order.type === 'DINE_IN' ? 'blue' : order.type === 'TAKEAWAY' ? 'green' : 'orange'}
+            style={{ 
+              fontSize: '10px',
+              marginTop: 4,
+              padding: '1px 6px'
+            }}
+          >
+            {order.type === 'DINE_IN' ? 'حضوری' : 
+             order.type === 'TAKEAWAY' ? 'بیرون‌بر' : 'پیک'}
+          </Tag>
         </div>
       )
     },
@@ -242,18 +279,38 @@ const KitchenPage: React.FC = () => {
       title: 'آیتم‌ها',
       dataIndex: 'items',
       key: 'items',
-      width: 200,
+      width: 220,
       responsive: ['sm'],
       render: (_, record: KitchenTicket) => (
-        <div>
-          {record.items.slice(0, 2).map(item => (
-            <div key={item.id} style={{ fontSize: '12px' }}>
-              <Text>{item.quantity}× {item.orderItem.menuItem.name}</Text>
+        <div style={{ lineHeight: 1.4 }}>
+          {record.items.slice(0, 2).map((item, index) => (
+            <div key={item.id} style={{ 
+              fontSize: '13px',
+              marginBottom: index === 0 ? 4 : 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <Text style={{ fontWeight: 500 }}>
+                {item.quantity}× {item.orderItem.menuItem.name}
+              </Text>
+              <Tag 
+                color={StatusDisplay[item.status]?.color}
+                style={{ 
+                  fontSize: 10,
+                  lineHeight: 1,
+                  margin: 0,
+                  marginRight: 4,
+                  padding: '1px 6px'
+                }}
+              >
+                {StatusDisplay[item.status]?.name}
+              </Tag>
             </div>
           ))}
           {record.items.length > 2 && (
             <Text type="secondary" style={{ fontSize: '11px' }}>
-              +{record.items.length - 2} آیتم دیگر
+              +{record.items.length - 2} آیتم دیگر...
             </Text>
           )}
         </div>
@@ -330,31 +387,45 @@ const KitchenPage: React.FC = () => {
       )
     },
     {
-      title: 'زمان',
+      title: 'زمان آماده‌سازی',
       dataIndex: 'estimatedTime',
       key: 'time',
-      width: 100,
+      width: 120,
       responsive: ['md'],
       render: (_: any, record: KitchenTicket) => {
         const timeInfo = getEstimatedTime(record);
         if (!timeInfo) {
-          return record.estimatedTime ? `${record.estimatedTime} دقیقه` : '-';
+          return (
+            <div style={{ textAlign: 'center' }}>
+              <ClockCircleOutlined style={{ color: '#999', fontSize: 16 }} />
+              <div style={{ fontSize: '12px', color: '#999', marginTop: 2 }}>
+                {record.estimatedTime ? `${record.estimatedTime} دقیقه` : 'نامشخص'}
+              </div>
+            </div>
+          );
         }
         
         return (
-          <div>
+          <div style={{ textAlign: 'center' }}>
             <Progress
+              type="circle"
+              size={40}
               percent={Math.min(100, (timeInfo.elapsed / (record.estimatedTime || 1)) * 100)}
-              size="small"
               status={timeInfo.isOverdue ? 'exception' : 'active'}
               showInfo={false}
+              strokeWidth={8}
             />
-            <Text style={{ 
+            <div style={{ 
               fontSize: '11px',
-              color: timeInfo.isOverdue ? '#ff4d4f' : '#666'
+              color: timeInfo.isOverdue ? '#ff4d4f' : '#666',
+              fontWeight: 500,
+              marginTop: 4
             }}>
-              {timeInfo.isOverdue ? `+${Math.abs(timeInfo.remaining)}` : timeInfo.remaining} دقیقه
-            </Text>
+              {timeInfo.isOverdue ? 
+                <Text type="danger">تاخیر {Math.abs(timeInfo.remaining)}د</Text> : 
+                <Text>{timeInfo.remaining} دقیقه</Text>
+              }
+            </div>
           </div>
         );
       }
@@ -614,54 +685,123 @@ const KitchenPage: React.FC = () => {
 
       {/* جدول فیش‌های آشپزخانه */}
       <ProCard 
-        title="فیش‌های آشپزخانه" 
+        title={
+          <Space size={16}>
+            <span style={{ fontSize: 18, fontWeight: 600 }}>فیش‌های آشپزخانه</span>
+            <Badge 
+              count={tickets.length} 
+              style={{ 
+                backgroundColor: '#52c41a',
+                fontWeight: 600
+              }}
+            />
+          </Space>
+        }
         bordered={false}
         style={{ 
-          borderRadius: 12,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+          borderRadius: 16,
+          boxShadow: '0 6px 20px rgba(0,0,0,0.08)',
+          overflow: 'hidden'
+        }}
+        bodyStyle={{ 
+          padding: 0 
         }}
         extra={
-          <Space>
-            <Text type="secondary">
-              مجموع: {tickets.length} فیش
+          <Space size={12}>
+            <Text type="secondary" style={{ fontSize: 14 }}>
+              آخرین بروزرسانی: {dayjs().format('HH:mm:ss')}
             </Text>
             <Button 
               type="text" 
               icon={<SettingOutlined />}
               onClick={() => setSettingsVisible(true)}
+              style={{
+                borderRadius: 8,
+                height: 36
+              }}
             >
               تنظیمات
             </Button>
           </Space>
         }
       >
+        <div style={{ 
+          background: 'linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%)',
+          padding: '16px 24px',
+          borderBottom: '1px solid #e6f7ff'
+        }}>
+          <Row gutter={[16, 8]} align="middle">
+            <Col xs={24} sm={12} md={8}>
+              <Space>
+                <FireOutlined style={{ color: '#1890ff', fontSize: 16 }} />
+                <Text strong style={{ color: '#1890ff' }}>
+                  فیش‌های فعال: {tickets.filter(t => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(t.status)).length}
+                </Text>
+              </Space>
+            </Col>
+            <Col xs={24} sm={12} md={8}>
+              <Space>
+                <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 16 }} />
+                <Text strong style={{ color: '#52c41a' }}>
+                  آماده: {tickets.filter(t => t.status === 'READY').length}
+                </Text>
+              </Space>
+            </Col>
+            <Col xs={24} sm={24} md={8}>
+              <Space>
+                <ClockCircleOutlined style={{ color: '#faad14', fontSize: 16 }} />
+                <Text strong style={{ color: '#faad14' }}>
+                  فوری: {tickets.filter(t => t.priority === 'URGENT').length}
+                </Text>
+              </Space>
+            </Col>
+          </Row>
+        </div>
+
         <ProTable<KitchenTicket>
           columns={columns}
           dataSource={tickets}
           rowKey="id"
           loading={loading}
           pagination={{
-            pageSize: 20,
+            pageSize: 15,
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total) => `مجموع ${total} فیش`,
-            responsive: true
+            showTotal: (total, range) => 
+              `${range[0]}-${range[1]} از ${total} فیش`,
+            responsive: true,
+            position: ['bottomCenter'],
+            style: { 
+              padding: '16px 24px',
+              background: '#fafafa'
+            }
           }}
           search={false}
           options={{
-            reload: () => fetchTickets(),
+            reload: () => {
+              fetchTickets();
+              fetchStats();
+            },
             density: true,
             fullScreen: true,
             setting: true
           }}
-          scroll={{ x: 1200 }}
-          size="small"
+          scroll={{ 
+            x: 1400,
+            y: 'calc(100vh - 480px)'
+          }}
+          size="middle"
           rowClassName={(record) => {
             const timeInfo = getEstimatedTime(record);
-            if (timeInfo?.isOverdue) return 'row-overdue';
-            if (record.priority === 'URGENT') return 'row-urgent';
-            return '';
+            if (timeInfo?.isOverdue) return 'kitchen-row-overdue';
+            if (record.priority === 'URGENT') return 'kitchen-row-urgent';
+            if (record.status === 'READY') return 'kitchen-row-ready';
+            return 'kitchen-row-normal';
           }}
+          tableStyle={{
+            background: '#fff',
+          }}
+          headerTitle={false}
         />
       </ProCard>
 
@@ -853,6 +993,49 @@ const KitchenPage: React.FC = () => {
       </Drawer>
 
       <style jsx global>{`
+        .kitchen-row-overdue {
+          background: linear-gradient(90deg, #fff2f0 0%, #ffebe8 100%) !important;
+          border-right: 4px solid #ff4d4f !important;
+          animation: kitchen-pulse 3s infinite;
+        }
+        
+        .kitchen-row-urgent {
+          background: linear-gradient(90deg, #fff7e6 0%, #ffefd3 100%) !important;
+          border-right: 4px solid #faad14 !important;
+          font-weight: 500;
+        }
+        
+        .kitchen-row-ready {
+          background: linear-gradient(90deg, #f6ffed 0%, #edffd6 100%) !important;
+          border-right: 4px solid #52c41a !important;
+        }
+        
+        .kitchen-row-normal {
+          background: #fff !important;
+          transition: all 0.3s ease;
+        }
+        
+        .kitchen-row-normal:hover {
+          background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%) !important;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+          transform: translateY(-1px);
+        }
+        
+        @keyframes kitchen-pulse {
+          0% { 
+            background: linear-gradient(90deg, #fff2f0 0%, #ffebe8 100%);
+            box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.4);
+          }
+          50% { 
+            background: linear-gradient(90deg, #ffccc7 0%, #ffa39e 100%);
+            box-shadow: 0 0 0 8px rgba(255, 77, 79, 0.1);
+          }
+          100% { 
+            background: linear-gradient(90deg, #fff2f0 0%, #ffebe8 100%);
+            box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.4);
+          }
+        }
+        
         .row-overdue {
           background-color: #fff2f0 !important;
           animation: pulse 2s infinite;
@@ -957,6 +1140,81 @@ const KitchenPage: React.FC = () => {
         .ant-table-rtl .ant-table-column-sorter {
           left: 4px;
           right: auto;
+        }
+        
+        /* بهبود جدول آشپزخانه */
+        .ant-pro-table .ant-table-thead > tr > th {
+          background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+          border-bottom: 2px solid #e2e8f0;
+          font-weight: 600;
+          color: #334155;
+          font-size: 14px;
+          padding: 16px 12px;
+        }
+        
+        .ant-pro-table .ant-table-tbody > tr > td {
+          padding: 12px;
+          border-bottom: 1px solid #f1f5f9;
+          vertical-align: middle;
+        }
+        
+        .ant-pro-table .ant-table-tbody > tr:last-child > td {
+          border-bottom: none;
+        }
+        
+        /* بهبود Select در جدول */
+        .ant-table .ant-select {
+          border-radius: 6px;
+          border: 1px solid #d1d5db;
+          transition: all 0.2s ease;
+        }
+        
+        .ant-table .ant-select:hover {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+        
+        .ant-table .ant-select-focused {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        
+        /* بهبود Button در جدول */
+        .ant-table .ant-btn-link {
+          color: #1890ff;
+          font-weight: 600;
+          padding: 0;
+          height: auto;
+          border: none;
+          box-shadow: none;
+        }
+        
+        .ant-table .ant-btn-link:hover {
+          color: #096dd9;
+          text-decoration: underline;
+        }
+        
+        /* بهبود Badge و Tag */
+        .ant-tag {
+          border-radius: 6px;
+          padding: 2px 8px;
+          font-size: 12px;
+          font-weight: 500;
+          border: none;
+          margin: 0;
+        }
+        
+        .ant-badge {
+          line-height: 1;
+        }
+        
+        /* بهبود Progress */
+        .ant-progress-line {
+          margin-bottom: 4px;
+        }
+        
+        .ant-progress-bg {
+          border-radius: 4px;
         }
       `}</style>
     </>
