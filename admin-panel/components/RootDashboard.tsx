@@ -23,7 +23,11 @@ import {
   QrcodeOutlined,
   MobileOutlined,
   CarOutlined,
-  TeamOutlined
+  TeamOutlined,
+  ApiOutlined,
+  SafetyOutlined,
+  CustomerServiceOutlined,
+  MoneyCollectOutlined
 } from '@ant-design/icons'
 import Link from 'next/link'
 import { useAuthStore } from '@/stores/auth-store'
@@ -102,6 +106,11 @@ const RootDashboard = ({
       label: <Link href="/kitchen">آشپزخانه</Link>,
     },
     {
+      key: '/cashier',
+      icon: <MoneyCollectOutlined />,
+      label: <Link href="/cashier">صندوق</Link>,
+    },
+    {
       key: '/delivery',
       icon: <CarOutlined />,
       label: <Link href="/delivery">تحویل</Link>,
@@ -122,9 +131,29 @@ const RootDashboard = ({
       label: <Link href="/staff">مدیریت کارکنان</Link>,
     },
     {
+      key: '/roles',
+      icon: <TeamOutlined />,
+      label: <Link href="/roles">نقش‌ها و دسترسی</Link>,
+    },
+    {
       key: '/ai-training',
       icon: <RobotOutlined />,
       label: <Link href="/ai-training">هوش مصنوعی</Link>,
+    },
+    {
+      key: '/integrations',
+      icon: <ApiOutlined />,
+      label: <Link href="/integrations">یکپارچگی‌ها</Link>,
+    },
+    {
+      key: '/security',
+      icon: <SafetyOutlined />,
+      label: <Link href="/security">امنیت</Link>,
+    },
+    {
+      key: '/support',
+      icon: <CustomerServiceOutlined />,
+      label: <Link href="/support">پشتیبانی</Link>,
     },
     {
       key: '/settings',
