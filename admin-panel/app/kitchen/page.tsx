@@ -180,13 +180,17 @@ const KitchenPage: React.FC = () => {
       dataIndex: 'ticketNumber',
       key: 'ticketNumber',
       width: 120,
-      fixed: 'left',
+      fixed: 'right', // تصحیح برای RTL
       render: (text: string, record: KitchenTicket) => (
         <Button 
           type="link" 
           onClick={() => {
             setDetailModalVisible(true);
             fetchTicketById(record.id);
+          }}
+          style={{ 
+            fontWeight: 600,
+            fontSize: 14
           }}
         >
           #{text.slice(-6)}
@@ -259,33 +263,37 @@ const KitchenPage: React.FC = () => {
       title: 'وضعیت',
       dataIndex: 'status',
       key: 'status',
-      width: 120,
-      fixed: 'right',
+      width: 140,
+      fixed: 'left', // تصحیح برای RTL
       render: (status: KitchenStatus, record: KitchenTicket) => {
         const display = StatusDisplay[status];
         return (
-          <Select
-            value={status}
-            style={{ width: '100%' }}
-            size="small"
-            onChange={(newStatus) => handleStatusUpdate(record.id, newStatus)}
-          >
-            <Option value="PENDING">
-              <Tag color="orange">در انتظار</Tag>
-            </Option>
-            <Option value="ACCEPTED">
-              <Tag color="blue">پذیرفته شده</Tag>
-            </Option>
-            <Option value="PREPARING">
-              <Tag color="processing">در حال آماده‌سازی</Tag>
-            </Option>
-            <Option value="READY">
-              <Tag color="success">آماده</Tag>
-            </Option>
-            <Option value="SERVED">
-              <Tag color="default">سرو شده</Tag>
-            </Option>
-          </Select>
+          <div style={{ direction: 'rtl' }}>
+            <Select
+              value={status}
+              style={{ width: '100%' }}
+              size="small"
+              onChange={(newStatus) => handleStatusUpdate(record.id, newStatus)}
+              loading={loading}
+              placeholder="انتخاب وضعیت"
+            >
+              <Option value="PENDING">
+                <Tag color="orange" style={{ margin: 0 }}>در انتظار</Tag>
+              </Option>
+              <Option value="ACCEPTED">
+                <Tag color="blue" style={{ margin: 0 }}>پذیرفته شده</Tag>
+              </Option>
+              <Option value="PREPARING">
+                <Tag color="processing" style={{ margin: 0 }}>در حال آماده‌سازی</Tag>
+              </Option>
+              <Option value="READY">
+                <Tag color="success" style={{ margin: 0 }}>آماده</Tag>
+              </Option>
+              <Option value="SERVED">
+                <Tag color="default" style={{ margin: 0 }}>سرو شده</Tag>
+              </Option>
+            </Select>
+          </div>
         );
       }
     },
@@ -389,20 +397,31 @@ const KitchenPage: React.FC = () => {
             padding: '24px'
           }}
         >
-          <Row gutter={[24, 16]}>
-            <Col xs={24} sm={12} md={6}>
+          <Row gutter={[24, 24]}> {/* افزایش فاصله vertical */}
+            <Col xs={24} sm={12} lg={6}> {/* حذف md برای بهتر شدن در تبلت */}
               <div style={{ 
                 textAlign: 'center',
-                padding: '20px',
+                padding: '24px', /* افزایش padding */
                 background: '#fff7e6',
-                borderRadius: 8,
-                border: '1px solid #ffd666'
+                borderRadius: 12, /* افزایش borderRadius */
+                border: '2px solid #ffd666', /* ضخیم‌تر کردن border */
+                transition: 'all 0.3s ease',
+                height: '140px', /* ارتفاع ثابت */
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
               }}>
-                <ClockCircleOutlined style={{ fontSize: 32, color: '#faad14', marginBottom: 8 }} />
+                <ClockCircleOutlined style={{ fontSize: 36, color: '#faad14', marginBottom: 12 }} />
                 <Statistic 
-                  title="فیش‌های در انتظار" 
+                  title={<span style={{ fontSize: 14, fontWeight: 500 }}>فیش‌های در انتظار</span>} 
                   value={stats?.overview?.pendingTickets || 0}
-                  valueStyle={{ color: '#faad14', fontSize: 28, fontWeight: 'bold' }}
+                  valueStyle={{ 
+                    color: '#faad14', 
+                    fontSize: 32, 
+                    fontWeight: 600, 
+                    fontFamily: 'Inter, sans-serif',
+                    lineHeight: 1.2
+                  }}
                 />
               </div>
             </Col>
@@ -470,10 +489,16 @@ const KitchenPage: React.FC = () => {
           bodyStyle={{ padding: '24px' }}
         >
           {/* فیلترهای اصلی */}
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={24} sm={12} lg={8}>
-              <div>
-                <Text strong style={{ display: 'block', marginBottom: 8, color: '#666' }}>
+          <Row gutter={[16, 24]} style={{ marginBottom: 24 }}> {/* افزایش فاصله */}
+            <Col xs={24} sm={24} md={8}> {/* تغییر breakpoint */}
+              <div style={{ marginBottom: 8 }}>
+                <Text strong style={{ 
+                  display: 'block', 
+                  marginBottom: 12, 
+                  color: '#262626', 
+                  fontSize: 15,
+                  fontWeight: 600
+                }}>
                   انتخاب بخش:
                 </Text>
                 <Select
@@ -487,6 +512,7 @@ const KitchenPage: React.FC = () => {
                     fetchTickets();
                   }}
                   allowClear
+                  dropdownStyle={{ direction: 'rtl' }}
                 >
                   {Object.entries(DepartmentDisplay).map(([key, display]: [string, any]) => (
                     <Option key={key} value={key}>
@@ -500,9 +526,15 @@ const KitchenPage: React.FC = () => {
               </div>
             </Col>
 
-            <Col xs={24} sm={12} lg={8}>
-              <div>
-                <Text strong style={{ display: 'block', marginBottom: 8, color: '#666' }}>
+            <Col xs={24} sm={24} md={8}> {/* تغییر breakpoint */}
+              <div style={{ marginBottom: 8 }}>
+                <Text strong style={{ 
+                  display: 'block', 
+                  marginBottom: 12, 
+                  color: '#262626', 
+                  fontSize: 15,
+                  fontWeight: 600
+                }}>
                   وضعیت فیش:
                 </Text>
                 <Select
@@ -515,6 +547,7 @@ const KitchenPage: React.FC = () => {
                     fetchTickets();
                   }}
                   allowClear
+                  dropdownStyle={{ direction: 'rtl' }}
                 >
                   {Object.entries(StatusDisplay).map(([key, display]) => (
                     <Option key={key} value={key}>
@@ -527,12 +560,25 @@ const KitchenPage: React.FC = () => {
               </div>
             </Col>
 
-            <Col xs={24} sm={24} lg={8}>
-              <div>
-                <Text strong style={{ display: 'block', marginBottom: 8, color: '#666' }}>
+            <Col xs={24} sm={24} md={8}> {/* تغییر breakpoint */}
+              <div style={{ marginBottom: 8 }}>
+                <Text strong style={{ 
+                  display: 'block', 
+                  marginBottom: 12, 
+                  color: '#262626', 
+                  fontSize: 15,
+                  fontWeight: 600
+                }}>
                   عملیات:
                 </Text>
-                <Space wrap style={{ width: '100%', justifyContent: 'flex-start' }}>
+                <Space 
+                  wrap 
+                  style={{ 
+                    width: '100%', 
+                    justifyContent: 'flex-start',
+                    gap: 12
+                  }}
+                >
                   <Button 
                     type="primary"
                     size="large"
@@ -865,13 +911,52 @@ const KitchenPage: React.FC = () => {
         
         @media (max-width: 768px) {
           .ant-col {
-            margin-bottom: 16px;
+            margin-bottom: 24px; /* افزایش فاصله در موبایل */
           }
           
           .ant-space {
             width: 100%;
             justify-content: center;
           }
+          
+          .ant-statistic-title {
+            font-size: 12px !important;
+          }
+          
+          .ant-statistic-content-value {
+            font-size: 24px !important;
+          }
+          
+          .ant-pro-table-list-toolbar {
+            flex-direction: column;
+            gap: 16px;
+          }
+        }
+        
+        @media (max-width: 576px) {
+          .ant-row [class*="ant-col-"] {
+            margin-bottom: 16px;
+          }
+          
+          .ant-select {
+            font-size: 14px;
+          }
+          
+          .ant-btn {
+            font-size: 14px;
+            padding: 4px 12px;
+          }
+        }
+        
+        /* بهبود RTL */
+        .ant-table-rtl .ant-table-thead > tr > th,
+        .ant-table-rtl .ant-table-tbody > tr > td {
+          text-align: right;
+        }
+        
+        .ant-table-rtl .ant-table-column-sorter {
+          left: 4px;
+          right: auto;
         }
       `}</style>
     </>
