@@ -28,6 +28,20 @@ build/
 .DS_Store
 Thumbs.db
 
+# Prevent duplicate files from being committed
+*_new.*
+*_old.*
+*-new.*
+*-old.*
+*.backup
+*.bak
+*_backup.*
+
+# Temporary editor files
+*~
+*.tmp
+*.temp
+
 # Logs
 logs
 *.log
