@@ -2,11 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { 
-  ProCard, 
-  ProTable, 
-  ProColumns 
-} from '@ant-design/pro-components';
-import { 
+  Card, 
+  Table, 
   Button, 
   Tag, 
   Space, 
@@ -16,7 +13,6 @@ import {
   Select, 
   Alert,
   Badge,
-  Tabs,
   Progress,
   Tooltip,
   message,
@@ -24,12 +20,11 @@ import {
   Divider,
   Typography,
   Drawer,
-  Card,
   Switch,
   TimePicker,
   InputNumber,
-  Input,
-  Form
+  Form,
+  Empty
 } from 'antd';
 import { 
   ClockCircleOutlined, 
@@ -39,11 +34,9 @@ import {
   BellOutlined,
   UserOutlined,
   TableOutlined,
-  CoffeeOutlined,
-  ShopOutlined,
   SettingOutlined,
-  PlusOutlined,
-  EditOutlined
+  EyeOutlined,
+  PlayCircleOutlined
 } from '@ant-design/icons';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { 
@@ -57,7 +50,6 @@ import dayjs from 'dayjs';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
-const { TabPane } = Tabs;
 
 const KitchenPage: React.FC = () => {
   const {
@@ -85,7 +77,7 @@ const KitchenPage: React.FC = () => {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [form] = Form.useForm();
 
-  // Create department display mapping from configs
+  // Department Display Mapping
   const DepartmentDisplay = React.useMemo(() => {
     const display: any = {};
     departmentConfigs.forEach(config => {
@@ -99,7 +91,7 @@ const KitchenPage: React.FC = () => {
     return display;
   }, [departmentConfigs]);
 
-  // وضعیت نمایش
+  // Status Display
   const StatusDisplay = {
     PENDING: { name: 'در انتظار', color: 'orange', icon: <ClockCircleOutlined /> },
     ACCEPTED: { name: 'پذیرفته شده', color: 'blue', icon: <UserOutlined /> },
@@ -109,7 +101,7 @@ const KitchenPage: React.FC = () => {
     CANCELLED: { name: 'لغو شده', color: 'error', icon: <ClockCircleOutlined /> }
   };
 
-  // اولویت نمایش
+  // Priority Display
   const PriorityDisplay = {
     LOW: { name: 'کم', color: 'default' },
     NORMAL: { name: 'عادی', color: 'blue' },
@@ -150,14 +142,6 @@ const KitchenPage: React.FC = () => {
     }
   };
 
-  // Handle assign chef
-  const handleAssignChef = async (ticketId: string, chef: string) => {
-    const success = await updateTicketStatus(ticketId, { assignedChef: chef });
-    if (success) {
-      message.success('آشپز مسئول تعیین شد');
-    }
-  };
-
   // Calculate estimated completion time
   const getEstimatedTime = (ticket: KitchenTicket) => {
     if (!ticket.startedAt || !ticket.estimatedTime) return null;
@@ -174,7 +158,232 @@ const KitchenPage: React.FC = () => {
   };
 
   // Table columns
-  const columns: ProColumns<KitchenTicket>[] = [
+  const columns = [
+    {
+      title: 'شماره فیش',
+      dataIndex: 'ticketNumber',
+      key: 'ticketNumber',
+      width: 100,
+      fixed: 'right' as const,
+      render: (text: string, record: KitchenTicket) => (
+        <Button 
+          type="link" 
+          onClick={() => {
+            setDetailModalVisible(true);
+            fetchTicketById(record.id);
+          }}
+          style={{ 
+            fontWeight: 600,
+            fontSize: '14px',
+            padding: 0
+          }}
+        >
+          #{text?.slice(-6) || 'N/A'}
+        </Button>
+      )
+    },
+    {
+      title: 'بخش',
+      dataIndex: 'department',
+      key: 'department',
+      width: 100,
+      align: 'center' as const,
+      render: (dept: Department) => {
+        const display = DepartmentDisplay[dept];
+        if (!display) return <Tag>{dept}</Tag>;
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ 
+              fontSize: '20px', 
+              marginBottom: '4px',
+              color: display.color 
+            }}>
+              {display.icon}
+            </div>
+            <Tag color={display.color} style={{ fontSize: '10px', margin: 0 }}>
+              {display.name}
+            </Tag>
+          </div>
+        );
+      }
+    },
+    {
+      title: 'سفارش',
+      dataIndex: 'order',
+      key: 'order',
+      width: 150,
+      render: (order: any) => {
+        if (!order) return <Text type="secondary">بدون سفارش</Text>;
+        return (
+          <div>
+            <Text strong style={{ color: '#1890ff', display: 'block' }}>
+              #{order.orderNumber?.slice(-6) || 'N/A'}
+            </Text>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {order.customerName || 'مشتری ناشناس'}
+            </Text>
+            <div style={{ marginTop: '4px' }}>
+              <Tag 
+                color={order.type === 'DINE_IN' ? 'blue' : order.type === 'TAKEAWAY' ? 'green' : 'orange'}
+                style={{ fontSize: '10px' }}
+              >
+                {order.type === 'DINE_IN' ? 'حضوری' : 
+                 order.type === 'TAKEAWAY' ? 'بیرون‌بر' : 'پیک'}
+              </Tag>
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      title: 'میز',
+      dataIndex: 'tableNumber',
+      key: 'tableNumber',
+      width: 80,
+      align: 'center' as const,
+      render: (table: number) => table ? (
+        <Tag icon={<TableOutlined />} color="cyan">
+          {table}
+        </Tag>
+      ) : (
+        <Text type="secondary">-</Text>
+      )
+    },
+    {
+      title: 'آیتم‌ها',
+      dataIndex: 'items',
+      key: 'items',
+      width: 200,
+      render: (_, record: KitchenTicket) => {
+        if (!record.items || record.items.length === 0) {
+          return <Text type="secondary">بدون آیتم</Text>;
+        }
+        
+        return (
+          <div>
+            {record.items.slice(0, 2).map((item, index) => (
+              <div key={item.id || index} style={{ 
+                marginBottom: '4px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <Text style={{ fontSize: '12px' }}>
+                  {item.quantity}× {item.orderItem?.menuItem?.name || 'آیتم نامشخص'}
+                </Text>
+                <Tag 
+                  color={StatusDisplay[item.status]?.color || 'default'}
+                  style={{ fontSize: '10px', margin: 0 }}
+                >
+                  {StatusDisplay[item.status]?.name || 'نامشخص'}
+                </Tag>
+              </div>
+            ))}
+            {record.items.length > 2 && (
+              <Text type="secondary" style={{ fontSize: '10px' }}>
+                و {record.items.length - 2} آیتم دیگر...
+              </Text>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      title: 'وضعیت',
+      dataIndex: 'status',
+      key: 'status',
+      width: 150,
+      fixed: 'left' as const,
+      render: (status: KitchenStatus, record: KitchenTicket) => (
+        <Select
+          value={status}
+          style={{ width: '100%' }}
+          size="small"
+          onChange={(newStatus) => handleStatusUpdate(record.id, newStatus)}
+          loading={loading}
+        >
+          {Object.entries(StatusDisplay).map(([key, display]) => (
+            <Option key={key} value={key}>
+              <Tag color={display.color} style={{ margin: 0 }}>
+                {display.name}
+              </Tag>
+            </Option>
+          ))}
+        </Select>
+      )
+    },
+    {
+      title: 'اولویت',
+      dataIndex: 'priority',
+      key: 'priority',
+      width: 80,
+      align: 'center' as const,
+      render: (priority: OrderPriority) => {
+        const display = PriorityDisplay[priority];
+        return <Tag color={display?.color || 'default'}>{display?.name || priority}</Tag>;
+      }
+    },
+    {
+      title: 'زمان',
+      dataIndex: 'estimatedTime',
+      key: 'time',
+      width: 100,
+      align: 'center' as const,
+      render: (_: any, record: KitchenTicket) => {
+        const timeInfo = getEstimatedTime(record);
+        if (!timeInfo) {
+          return (
+            <div style={{ textAlign: 'center' }}>
+              <Text style={{ fontSize: '12px', color: '#999' }}>
+                {record.estimatedTime ? `${record.estimatedTime} دقیقه` : 'نامشخص'}
+              </Text>
+            </div>
+          );
+        }
+        
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <Progress
+              type="circle"
+              size={32}
+              percent={Math.min(100, (timeInfo.elapsed / (record.estimatedTime || 1)) * 100)}
+              status={timeInfo.isOverdue ? 'exception' : 'active'}
+              showInfo={false}
+              strokeWidth={6}
+            />
+            <div style={{ 
+              fontSize: '10px',
+              color: timeInfo.isOverdue ? '#ff4d4f' : '#666',
+              marginTop: '2px'
+            }}>
+              {timeInfo.isOverdue ? 
+                `تاخیر ${Math.abs(timeInfo.remaining)}د` : 
+                `${timeInfo.remaining} دقیقه`
+              }
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      title: 'عملیات',
+      key: 'actions',
+      width: 80,
+      align: 'center' as const,
+      render: (_, record: KitchenTicket) => (
+        <Tooltip title="مشاهده جزئیات">
+          <Button
+            type="text"
+            icon={<EyeOutlined />}
+            onClick={() => {
+              setDetailModalVisible(true);
+              fetchTicketById(record.id);
+            }}
+          />
+        </Tooltip>
+      )
+    }
+  ];
     {
       title: 'شماره فیش',
       dataIndex: 'ticketNumber',
