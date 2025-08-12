@@ -195,8 +195,21 @@ class ComprehensiveErrorHandler {
       // Ant Design locale warnings that we can't fix
       'Warning: [antd: message] Static function',
       'Warning: [antd: notification] Static function',
-      'Warning: [antd: modal] Static function'
+      'Warning: [antd: modal] Static function',
+      
+      // Chinese warnings from Ant Design Pro components
+      '只在 form 初始化时生效',
+      'initialValues 只在',
+      '只在',
+      '中文',
+      '異步加載',
+      '初始化'
     ]
+
+    // Check for Chinese characters
+    if (/[\u4e00-\u9fff]/.test(message)) {
+      return true
+    }
 
     return suppressedPatterns.some(pattern => message.includes(pattern))
   }

@@ -114,12 +114,18 @@ const MenuPage: React.FC = () => {
   const fetchCategories = async () => {
     try {
       const response = await fetch('/api/menu/categories?limit=100');
-      const result: ApiResponse<Category[]> = await response.json();
-      if (result.success) {
-        setCategories(result.data);
+      const result = await response.json();
+      console.log('📂 Categories response:', result);
+      
+      if (result.success && result.categories) {
+        setCategories(result.categories);
+      } else {
+        setCategories([]);
       }
     } catch (error) {
+      console.error('Categories fetch error:', error);
       message.error('خطا در دریافت دسته‌بندی‌ها');
+      setCategories([]);
     }
   };
 
@@ -277,6 +283,98 @@ const MenuPage: React.FC = () => {
           {record.preparationTime} دقیقه
         </Space>
       ),
+      search: false
+    },
+    {
+      title: 'مواد اولیه',
+      dataIndex: 'ingredients',
+      key: 'ingredients',
+      width: 200,
+      render: (dom: any, record: MenuItem) => {
+        try {
+          const ingredients = JSON.parse(record.ingredients || '[]');
+          if (!Array.isArray(ingredients) || ingredients.length === 0) {
+            return <span style={{ color: '#999' }}>-</span>;
+          }
+          
+          // Filter out invalid ingredients
+          const validIngredients = ingredients.filter((ingredient: any) => 
+            ingredient && typeof ingredient === 'string' && ingredient.trim().length > 0
+          );
+          
+          if (validIngredients.length === 0) {
+            return <span style={{ color: '#999' }}>-</span>;
+          }
+          
+          return (
+            <div style={{ maxWidth: 180 }}>
+              {validIngredients.slice(0, 3).map((ingredient: string, index: number) => {
+                const ingredientStr = String(ingredient || '').trim();
+                if (!ingredientStr) return null;
+                
+                return (
+                  <Tag key={`ingredient-${index}-${ingredientStr}`} color="green" style={{ marginBottom: 2 }}>
+                    {ingredientStr}
+                  </Tag>
+                );
+              }).filter(Boolean)}
+              {validIngredients.length > 3 && (
+                <Tooltip title={validIngredients.slice(3).map(String).join(', ')}>
+                  <Tag color="default">+{validIngredients.length - 3}</Tag>
+                </Tooltip>
+              )}
+            </div>
+          );
+        } catch (error) {
+          return <span style={{ color: '#999' }}>-</span>;
+        }
+      },
+      search: false
+    },
+    {
+      title: 'برچسب‌ها',
+      dataIndex: 'tags',
+      key: 'tags',
+      width: 200,
+      render: (dom: any, record: MenuItem) => {
+        try {
+          const tags = JSON.parse(record.tags || '[]');
+          if (!Array.isArray(tags) || tags.length === 0) {
+            return <span style={{ color: '#999' }}>-</span>;
+          }
+          
+          // Filter out invalid tags
+          const validTags = tags.filter((tag: any) => 
+            tag && typeof tag === 'string' && tag.trim().length > 0
+          );
+          
+          if (validTags.length === 0) {
+            return <span style={{ color: '#999' }}>-</span>;
+          }
+          
+          return (
+            <div style={{ maxWidth: 180 }}>
+              {validTags.slice(0, 3).map((tag: string, index: number) => {
+                const tagStr = String(tag || '').trim();
+                if (!tagStr) return null;
+                
+                return (
+                  <Tag key={`tag-${index}-${tagStr}`} color="purple" style={{ marginBottom: 2 }}>
+                    {tagStr}
+                  </Tag>
+                );
+              }).filter(Boolean)}
+              {validTags.length > 3 && (
+                <Tooltip title={validTags.slice(3).map(String).join(', ')}>
+                  <Tag color="default">+{validTags.length - 3}</Tag>
+                </Tooltip>
+              )}
+            </div>
+          );
+        } catch (error) {
+          return <span style={{ color: '#999' }}>-</span>;
+        }
+      },
       search: false
     },
     {
@@ -452,7 +550,7 @@ const MenuPage: React.FC = () => {
       {/* مدیریت دسته‌بندی‌ها */}
       <Card title="مدیریت دسته‌بندی‌ها" style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]}>
-          {categories.map(category => (
+          {categories && categories.length > 0 ? categories.map(category => (
             <Col span={6} key={category.id}>
               <Card
                 size="small"
@@ -486,7 +584,13 @@ const MenuPage: React.FC = () => {
                 <p>{category.description || 'بدون توضیح'}</p>
               </Card>
             </Col>
-          ))}
+          )) : (
+            <Col span={24}>
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <p>هیچ دسته‌بندی‌ای موجود نیست</p>
+              </div>
+            </Col>
+          )}
         </Row>
       </Card>
 

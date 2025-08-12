@@ -1,124 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-// import { InventoryStatus } from '@prisma/client'; // Commented out for now
+import { InventoryStatus } from '@prisma/client';
 
 // GET - دریافت تمام آیتم‌های انبار
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    console.log('📦 Inventory GET API called');
     
-    // پارامترهای جستجو و فیلتر
+    const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const search = searchParams.get('search') || '';
     const categoryId = searchParams.get('categoryId') || '';
     const status = searchParams.get('status') || '';
-    const location = searchParams.get('location') || '';
-    const supplier = searchParams.get('supplier') || '';
-    const minStock = searchParams.get('minStock');
-    const maxStock = searchParams.get('maxStock');
-    const autoReorder = searchParams.get('autoReorder');
-    const isActive = searchParams.get('isActive');
-    const sortBy = searchParams.get('sortBy') || 'name';
-    const sortOrder = searchParams.get('sortOrder') || 'asc';
 
-    // محاسبه offset
     const skip = (page - 1) * limit;
-
-    // ساخت شرایط جستجو
     const where: any = {};
 
-    // جستجو در نام
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
-        { nameEn: { contains: search, mode: 'insensitive' } },
-        { nameAr: { contains: search, mode: 'insensitive' } },
         { sku: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } }
       ];
     }
 
-    // فیلتر بر اساس دسته‌بندی
     if (categoryId && categoryId !== 'all') {
       where.categoryId = categoryId;
     }
 
-    // فیلتر بر اساس وضعیت
     if (status && status !== 'all') {
       where.status = status;
     }
 
-    // فیلتر بر اساس موقعیت
-    if (location && location !== 'all') {
-      where.location = { contains: location, mode: 'insensitive' };
-    }
-
-    // فیلتر بر اساس تامین کننده
-    if (supplier && supplier !== 'all') {
-      where.supplier = { contains: supplier, mode: 'insensitive' };
-    }
-
-    // فیلتر موجودی
-    if (minStock !== null && minStock !== '') {
-      where.currentStock = { ...where.currentStock, gte: parseFloat(minStock) };
-    }
-    if (maxStock !== null && maxStock !== '') {
-      where.currentStock = { ...where.currentStock, lte: parseFloat(maxStock) };
-    }
-
-    // فیلتر سفارش خودکار
-    if (autoReorder !== null && autoReorder !== '') {
-      where.autoReorder = autoReorder === 'true';
-    }
-
-    // فیلتر فعال/غیرفعال
-    if (isActive !== null && isActive !== '') {
-      where.isActive = isActive === 'true';
-    }
-
-    // تنظیم مرتب‌سازی
-    const orderBy: any = {};
-    
-    if (sortBy === 'name') {
-      orderBy.name = sortOrder;
-    } else if (sortBy === 'currentStock') {
-      orderBy.currentStock = sortOrder;
-    } else if (sortBy === 'price') {
-      orderBy.price = sortOrder;
-    } else if (sortBy === 'status') {
-      orderBy.status = sortOrder;
-    } else if (sortBy === 'createdAt') {
-      orderBy.createdAt = sortOrder;
-    } else {
-      orderBy.name = 'asc';
-    }
-
-    // دریافت آیتم‌های انبار با اطلاعات کامل
+    // دریافت آیتم‌ها از دیتابیس
     const [items, total] = await Promise.all([
       prisma.inventoryItem.findMany({
         where,
-        skip,
-        take: limit,
         include: {
-          category: {
-            select: {
-              id: true,
-              name: true,
-              nameEn: true,
-              nameAr: true
-            }
+          category: true,
+          movements: {
+            orderBy: { createdAt: 'desc' },
+            take: 5
           }
         },
-        orderBy
+        skip,
+        take: limit,
+        orderBy: { name: 'asc' }
       }),
       prisma.inventoryItem.count({ where })
     ]);
 
-    // محاسبه آمار صفحه‌بندی
-    const totalPages = Math.ceil(total / limit);
-    const hasNextPage = page < totalPages;
-    const hasPreviousPage = page > 1;
+    console.log(`📦 Found ${items.length} inventory items`);
 
     return NextResponse.json({
       success: true,
@@ -127,161 +60,139 @@ export async function GET(request: NextRequest) {
         page,
         limit,
         total,
-        totalPages,
-        hasNextPage,
-        hasPreviousPage
+        pages: Math.ceil(total / limit)
       }
     });
 
   } catch (error) {
-    console.error('Error fetching inventory items:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'خطا در دریافت آیتم‌های انبار',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
+    console.error('❌ Inventory GET error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'خطا در دریافت آیتم‌های انبار',
+      data: []
+    }, { status: 500 });
   }
 }
 
-// POST - ایجاد آیتم جدید انبار
+// POST - اضافه کردن آیتم جدید به انبار
 export async function POST(request: NextRequest) {
   try {
+    console.log('📦 Inventory POST API called');
     const body = await request.json();
-    
-    const {
-      name,
-      nameEn,
-      nameAr,
-      description,
-      categoryId,
-      sku,
-      unit,
-      currentStock,
-      minStock,
-      maxStock,
-      reorderPoint,
-      price,
-      supplier,
-      supplierCode,
-      lastRestockDate,
-      expiryDate,
-      batchNumber,
-      barcode,
-      location,
-      autoReorder = false,
-      isActive = true
-    } = body;
+    console.log('📦 Request body:', body);
 
-    // اعتبارسنجی فیلدهای الزامی
-    if (!name || !categoryId || !sku || !unit) {
-      return NextResponse.json(
-        { success: false, error: 'فیلدهای الزامی را پر کنید' },
-        { status: 400 }
-      );
-    }
-
-    // بررسی یکتا بودن SKU
-    const existingSku = await prisma.inventoryItem.findUnique({
-      where: { sku }
-    });
-
-    if (existingSku) {
-      return NextResponse.json(
-        { success: false, error: 'کد کالا قبلاً استفاده شده است' },
-        { status: 400 }
-      );
-    }
-
-    // تعیین وضعیت بر اساس موجودی
-    let status: string = 'IN_STOCK';
-    if (currentStock <= 0) {
-      status = 'OUT_OF_STOCK';
-    } else if (currentStock <= minStock) {
-      status = 'LOW_STOCK';
-    }
-
-    // بررسی انقضا
-    if (expiryDate && new Date(expiryDate) <= new Date()) {
-      status = 'EXPIRED';
-    }
-
-    // ایجاد آیتم جدید
     const newItem = await prisma.inventoryItem.create({
       data: {
-        name,
-        nameEn,
-        nameAr,
-        description,
-        categoryId,
-        sku,
-        unit,
-        currentStock: parseFloat(currentStock) || 0,
-        minStock: parseFloat(minStock) || 0,
-        maxStock: parseFloat(maxStock) || 0,
-        reorderPoint: parseFloat(reorderPoint) || 0,
-        price: parseFloat(price) || 0,
-        averageCost: parseFloat(price) || 0,
-        supplier,
-        supplierCode,
-        lastRestockDate: lastRestockDate ? new Date(lastRestockDate) : null,
-        expiryDate: expiryDate ? new Date(expiryDate) : null,
-        batchNumber,
-        barcode,
-        location,
-        status,
-        autoReorder,
-        isActive
+        name: body.name,
+        description: body.description,
+        categoryId: body.categoryId,
+        sku: body.sku,
+        unit: body.unit || 'piece',
+        currentStock: body.currentStock || 0,
+        minStock: body.minStock || 0,
+        maxStock: body.maxStock,
+        unitPrice: body.unitPrice || 0,
+        supplierName: body.supplierName,
+        expiryDate: body.expiryDate ? new Date(body.expiryDate) : null,
+        status: body.status || 'IN_STOCK',
+        location: body.location,
+        notes: body.notes,
+        isActive: body.isActive ?? true
       },
       include: {
-        category: {
-          select: {
-            id: true,
-            name: true,
-            nameEn: true,
-            nameAr: true
-          }
-        }
+        category: true
       }
     });
 
-    // ثبت حرکت ورودی اولیه
-    if (currentStock > 0) {
-      await prisma.stockMovement.create({
-        data: {
-          itemId: newItem.id,
-          type: 'IN',
-          quantity: parseFloat(currentStock),
-          previousStock: 0,
-          newStock: parseFloat(currentStock),
-          unitPrice: parseFloat(price) || 0,
-          totalValue: parseFloat(currentStock) * (parseFloat(price) || 0),
-          reason: 'موجودی اولیه',
-          user: 'System', // در آینده از JWT گرفته شود
-          batchNumber,
-          expiryDate: expiryDate ? new Date(expiryDate) : null,
-          supplier
-        }
-      });
-    }
+    console.log('📦 Created inventory item:', newItem.id);
 
     return NextResponse.json({
       success: true,
-      data: newItem,
-      message: 'آیتم انبار با موفقیت ایجاد شد'
+      message: 'آیتم انبار با موفقیت ایجاد شد',
+      data: newItem
     });
 
   } catch (error) {
-    console.error('Error creating inventory item:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'خطا در ایجاد آیتم انبار',
-        details: error instanceof Error ? error.message : 'Unknown error'
+    console.error('❌ Inventory POST error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'خطا در ایجاد آیتم انبار'
+    }, { status: 500 });
+  }
+}
+
+// PUT - به‌روزرسانی آیتم انبار
+export async function PUT(request: NextRequest) {
+  try {
+    console.log('📦 Inventory PUT API called');
+    const body = await request.json();
+    const { id, ...updateData } = body;
+
+    if (!id) {
+      return NextResponse.json({
+        success: false,
+        message: 'شناسه آیتم الزامی است'
+      }, { status: 400 });
+    }
+
+    const updatedItem = await prisma.inventoryItem.update({
+      where: { id },
+      data: {
+        ...updateData,
+        expiryDate: updateData.expiryDate ? new Date(updateData.expiryDate) : null
       },
-      { status: 500 }
-    );
+      include: {
+        category: true
+      }
+    });
+
+    console.log('📦 Updated inventory item:', updatedItem.id);
+
+    return NextResponse.json({
+      success: true,
+      message: 'آیتم انبار با موفقیت به‌روزرسانی شد',
+      data: updatedItem
+    });
+
+  } catch (error) {
+    console.error('❌ Inventory PUT error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'خطا در به‌روزرسانی آیتم انبار'
+    }, { status: 500 });
+  }
+}
+
+// DELETE - حذف آیتم انبار
+export async function DELETE(request: NextRequest) {
+  try {
+    console.log('📦 Inventory DELETE API called');
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({
+        success: false,
+        message: 'شناسه آیتم الزامی است'
+      }, { status: 400 });
+    }
+
+    await prisma.inventoryItem.delete({
+      where: { id }
+    });
+
+    console.log('📦 Deleted inventory item:', id);
+
+    return NextResponse.json({
+      success: true,
+      message: 'آیتم انبار با موفقیت حذف شد'
+    });
+
+  } catch (error) {
+    console.error('❌ Inventory DELETE error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'خطا در حذف آیتم انبار'
+    }, { status: 500 });
   }
 }

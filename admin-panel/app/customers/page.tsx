@@ -70,6 +70,28 @@ export default function CustomersPage() {
       onFilter: (value: string, record: Customer) => record.tier === value,
     },
     {
+      title: "برچسب‌ها",
+      dataIndex: "tags",
+      render: (_: any, record: Customer) => (
+        <Space size={[0, 8]} wrap>
+          {record.tags && record.tags.length > 0 ? (
+            record.tags.map((tag: string, index: number) => (
+              <Tag key={index} color={
+                tag === "VIP" ? "purple" : 
+                tag === "وفادار" ? "green" : 
+                tag === "جدید" ? "blue" : 
+                tag === "گیاهخوار" ? "orange" : "default"
+              }>
+                {tag}
+              </Tag>
+            ))
+          ) : (
+            <span style={{ color: "#999" }}>-</span>
+          )}
+        </Space>
+      ),
+    },
+    {
       title: "وضعیت",
       dataIndex: "status",
       render: (_: any, record: Customer) => (
@@ -230,18 +252,32 @@ export default function CustomersPage() {
         footer={null}
         width={600}
       >
-        <ProForm
-          initialValues={editingCustomer || { tier: "Bronze", status: "Active" }}
-          onFinish={handleSubmit}
-          layout="vertical"
-          submitter={{
-            searchConfig: {
-              submitText: editingCustomer ? "ویرایش" : "افزودن",
-              resetText: "انصراف",
-            },
-            onReset: () => { setIsModalVisible(false); setEditingCustomer(null); },
-          }}
-        >
+        {isModalVisible && (
+          <ProForm
+            key={editingCustomer?.id || 'new'} // key برای reset کردن فرم
+            initialValues={editingCustomer ? {
+              name: editingCustomer.name,
+              phone: editingCustomer.phone,
+              email: editingCustomer.email || '',
+              tier: editingCustomer.tier,
+              status: editingCustomer.status,
+              gender: editingCustomer.gender || '',
+              dateOfBirth: editingCustomer.dateOfBirth || '',
+              avatar: editingCustomer.avatar || ''
+            } : { 
+              tier: "Bronze", 
+              status: "Active" 
+            }}
+            onFinish={handleSubmit}
+            layout="vertical"
+            submitter={{
+              searchConfig: {
+                submitText: editingCustomer ? "ویرایش" : "افزودن",
+                resetText: "انصراف",
+              },
+              onReset: () => { setIsModalVisible(false); setEditingCustomer(null); },
+            }}
+          >
           <ProFormText name="name" label="نام و نام خانوادگی" placeholder="نام کامل مشتری" rules={[{ required: true, message: "نام الزامی است" }]} />
           <ProFormText name="phone" label="شماره تماس" placeholder="09123456789" rules={[{ required: true, message: "شماره تماس الزامی است" }]} />
           <ProFormText name="email" label="ایمیل" placeholder="email@example.com" rules={[{ type: "email", message: "فرمت ایمیل صحیح نیست" }]} />
@@ -249,7 +285,8 @@ export default function CustomersPage() {
           <ProFormSelect name="status" label="وضعیت" options={[{ label: "Active", value: "Active" }, { label: "Inactive", value: "Inactive" }, { label: "Blocked", value: "Blocked" }]} rules={[{ required: true, message: "وضعیت الزامی است" }]} />
           <ProFormTextArea name="notes" label="یادداشت" placeholder="یادداشت‌های مشتری" />
           <ProFormCheckbox.Group name="tags" label="برچسب‌ها" options={[{ label: "VIP", value: "VIP" }, { label: "وفادار", value: "وفادار" }, { label: "جدید", value: "جدید" }, { label: "گیاهخوار", value: "گیاهخوار" }]} />
-        </ProForm>
+          </ProForm>
+        )}
       </Modal>
 
       {/* Modal پروفایل تفصیلی مشتری */}

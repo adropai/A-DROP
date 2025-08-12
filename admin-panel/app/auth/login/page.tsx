@@ -21,17 +21,18 @@ export default function LoginPage() {
     
     try {
       console.log('📡 Sending login request...');
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: values.email,
-          password: values.password,
-          remember: values.remember,
-        }),
-      });
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include', // مهم: برای ست شدن کوکی httpOnly
+            body: JSON.stringify({
+              email: values.email,
+              password: values.password,
+              remember: values.remember,
+            }),
+          });
 
       console.log('📊 Response status:', response.status);
       const data = await response.json();
@@ -42,32 +43,24 @@ export default function LoginPage() {
         
         // Store token in localStorage and cookie
         console.log('💾 Storing token...');
+        // فقط ذخیره توکن در localStorage (در صورت نیاز سمت کلاینت)
         localStorage.setItem('auth_token', data.token);
         
-        // Set cookie with proper formatting - اصلاح شده
-        document.cookie = `auth_token=${data.token}; path=/; max-age=604800; samesite=lax`;
-        console.log('🍪 Cookie set. All cookies:', document.cookie);
+        // DEBUG: چک کردن کوکی‌ها بعد از لاگین
+        setTimeout(() => {
+          console.log('🍪 All cookies after login:', document.cookie);
+          console.log('🔍 Looking for auth_token cookie...');
+        }, 200);
         
         // Update auth store directly with the data we already have
-        console.log('👤 Setting user in store...');
         setUser(data.user);
-        
         message.success(data.message);
         
-        console.log('🔄 Redirecting to dashboard...');
-        // Force a full page reload to ensure middleware re-runs
+        // ریدایرکت به داشبورد با reload کامل
         setTimeout(() => {
-          console.log('🏃‍♂️ Executing redirect...');
-          // First try router.push for faster navigation
-          router.push('/dashboard');
-          // Fallback to window.location if needed
-          setTimeout(() => {
-            if (window.location.pathname !== '/dashboard') {
-              console.log('🔄 Fallback redirect...');
-              window.location.href = '/dashboard';
-            }
-          }, 1000);
-        }, 1000);
+          console.log('🔄 Redirecting to dashboard...');
+          window.location.href = '/dashboard';
+        }, 500);
       } else {
         console.log('❌ Login failed:', data.message);
         message.error(data.message);

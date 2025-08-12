@@ -1,32 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ReservationStatus } from '@prisma/client';
+import moment from 'moment-jalaali';
 
-// GET /api/reservations - دریافت رزروها
+// تنظیم moment-jalaali
+moment.loadPersian({ usePersianDigits: false, dialect: 'persian-modern' });
+
+// Helper functions برای تبدیل تاریخ
+function convertPersianToGregorian(persianDate: string, time: string = '00:00'): Date {
+  try {
+    const [hour, minute] = time.split(':').map(Number);
+    const m = moment(persianDate + ' ' + time, 'jYYYY/jMM/jDD HH:mm');
+    return m.toDate();
+  } catch (error) {
+    console.error('خطا در تبدیل تاریخ:', error);
+    // بازگشت به روش قدیمی در صورت خطا
+    const [year, month, day] = persianDate.split('/').map(Number);
+    const [hour, minute] = time.split(':').map(Number);
+    const adjustedYear = year > 1400 ? year - 621 : year;
+    return new Date(adjustedYear, month - 1, day, hour, minute);
+  }
+}
+
+function convertGregorianToPersian(gregorianDate: Date): string {
+  try {
+    return moment(gregorianDate).format('jYYYY/jMM/jDD');
+  } catch (error) {
+    console.error('خطا در تبدیل تاریخ میلادی:', error);
+    // بازگشت به روش قدیمی در صورت خطا
+    const year = gregorianDate.getFullYear() + 621;
+    const month = (gregorianDate.getMonth() + 1).toString().padStart(2, '0');
+    const day = gregorianDate.getDate().toString().padStart(2, '0');
+    return `${year}/${month}/${day}`;
+  }
+}
+
+function formatTime(date: Date): string {
+  return date.toTimeString().slice(0, 5);
+}
+
+// GET /api/reservations - دریافت رزروها با تقویم شمسی
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
-    const date = searchParams.get('date');
+    const persianDate = searchParams.get('date'); // فرمت: 1403/05/15
     const tableId = searchParams.get('tableId');
     const customerPhone = searchParams.get('customerPhone');
     const upcoming = searchParams.get('upcoming') === 'true';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    console.log('دریافت رزروها با فیلترها:', { status, date, tableId, customerPhone, upcoming });
+    console.log('📅 دریافت رزروها:', { status, persianDate, tableId, customerPhone, upcoming });
     
     // ساخت شرط‌های جستجو
     const where: any = {};
     
-    if (status) where.status = status;
-    if (tableId) where.tableId = tableId;
-    if (customerPhone) where.customerPhone = { contains: customerPhone };
+    if (status) {
+      where.status = status as ReservationStatus;
+    }
+    if (tableId) {
+      where.tableId = tableId;
+    }
+    if (customerPhone) {
+      where.customerPhone = { contains: customerPhone };
+    }
     
-    // فیلتر تاریخ
-    if (date) {
-      const targetDate = new Date(date);
-      const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
+    // فیلتر تاریخ شمسی
+    if (persianDate) {
+      const startOfDay = convertPersianToGregorian(persianDate, '00:00');
+      const endOfDay = convertPersianToGregorian(persianDate, '23:59');
       where.reservationDate = {
         gte: startOfDay,
         lte: endOfDay
@@ -50,7 +93,8 @@ export async function GET(request: NextRequest) {
             number: true,
             capacity: true,
             location: true,
-            type: true
+            type: true,
+            status: true
           }
         }
       },
@@ -60,6 +104,21 @@ export async function GET(request: NextRequest) {
       skip: (page - 1) * limit,
       take: limit
     });
+
+    // تبدیل تاریخ‌ها به شمسی
+    const formattedReservations = reservations.map(reservation => ({
+      ...reservation,
+      persianDate: convertGregorianToPersian(reservation.reservationDate),
+      persianTime: reservation.reservationDate.toISOString().substring(11, 16), // HH:mm format
+      status: reservation.status.toLowerCase(),
+      table: {
+        ...reservation.table,
+        type: reservation.table.type.toLowerCase(),
+        status: reservation.table.status.toLowerCase(),
+        name: `میز ${reservation.table.number}`,
+        hall: reservation.table.location || 'سالن اصلی'
+      }
+    }));
 
     // شمارش کل رزروها
     const total = await prisma.reservation.count({ where });
@@ -78,7 +137,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        reservations,
+        reservations: formattedReservations,
         pagination: {
           page,
           limit,
@@ -86,14 +145,14 @@ export async function GET(request: NextRequest) {
           totalPages: Math.ceil(total / limit)
         },
         stats: stats.reduce((acc, stat) => {
-          acc[stat.status] = stat._count.id;
+          acc[stat.status.toLowerCase()] = stat._count.id;
           return acc;
         }, {} as Record<string, number>)
       }
     });
 
   } catch (error) {
-    console.error('خطا در دریافت رزروها:', error);
+    console.error('❌ خطا در دریافت رزروها:', error);
     return NextResponse.json(
       {
         success: false,
@@ -110,15 +169,47 @@ export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
     
-    console.log('ایجاد رزرو جدید:', data);
+    console.log('🔥 API received data:', JSON.stringify(data, null, 2));
 
-    // اعتبارسنجی داده‌ها
-    if (!data.tableId || !data.customerName || !data.customerPhone || !data.reservationDate || !data.partySize) {
+    // اعتبارسنجی داده‌ها - پذیرش هر دو فرمت persianDate و reservationDate
+    const persianDate = data.persianDate || data.reservationDate;
+    const time = data.time || '19:00';
+    
+    console.log('🔥 Validation fields:', {
+      tableId: data.tableId,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      persianDate: persianDate,
+      partySize: data.partySize,
+      time: time
+    });
+    
+    if (!data.tableId || !data.customerName || !data.customerPhone || !persianDate || !data.partySize) {
+      console.error('❌ Missing required fields:', {
+        tableId: !!data.tableId,
+        customerName: !!data.customerName,
+        customerPhone: !!data.customerPhone,
+        persianDate: !!persianDate,
+        partySize: !!data.partySize
+      });
       return NextResponse.json(
         { success: false, error: 'فیلدهای میز، نام مشتری، تلفن، تاریخ و تعداد نفرات اجباری هستند' },
         { status: 400 }
       );
     }
+
+    // تبدیل تاریخ شمسی به میلادی
+    const reservationDate = convertPersianToGregorian(persianDate, time);
+    const startTime = reservationDate;
+    const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000); // 2 ساعت پیش‌فرض
+
+    console.log('تاریخ‌های تبدیل شده:', {
+      persianDate,
+      time,
+      reservationDate: reservationDate.toISOString(),
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString()
+    });
 
     // بررسی ظرفیت میز
     const table = await prisma.table.findUnique({
@@ -140,10 +231,6 @@ export async function POST(request: NextRequest) {
     }
 
     // بررسی تداخل رزرو
-    const reservationDate = new Date(data.reservationDate);
-    const startTime = new Date(data.startTime || data.reservationDate);
-    const endTime = new Date(data.endTime || new Date(startTime.getTime() + 2 * 60 * 60 * 1000)); // 2 ساعت پیش‌فرض
-
     const conflictingReservation = await prisma.reservation.findFirst({
       where: {
         tableId: data.tableId,

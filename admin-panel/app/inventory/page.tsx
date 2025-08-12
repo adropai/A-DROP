@@ -2,10 +2,12 @@
 
 import React, { useEffect } from "react";
 import { ProTable, ProForm, ProFormText, ProFormDigit, ProFormSelect, ProFormDatePicker, ProCard, Statistic } from "@ant-design/pro-components";
-import { Button, Tag, Space, Tooltip, Alert, Modal, message } from "antd";
+import { Button, Tag, Space, Tooltip, Alert, Modal, message, Typography } from "antd";
 import { useInventoryStore } from "@/stores/inventory-store";
 import { InventoryItem, InventoryCategory, StockMovement, InventoryStatus, MovementType } from "@/types/inventory";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
+
+const { Text } = Typography;
 
 const InventoryPage: React.FC = () => {
   const {
@@ -181,6 +183,7 @@ const InventoryPage: React.FC = () => {
     setMovementVisible(false);
     setMovementItemId(null);
     fetchItems(); // رفرش لیست آیتم‌ها
+    fetchMovements(); // رفرش لیست حرکت‌ها
   };
 
   // Category handlers
@@ -226,10 +229,21 @@ const InventoryPage: React.FC = () => {
       <ProCard split="horizontal" gutter={16}>
         <ProCard>
           <Space>
-            <Statistic title="کل آیتم‌ها" value={stats?.totalItems || 0} />
-            <Statistic title="آیتم‌های موجود" value={stats?.inStockItems || 0} />
-            <Statistic title="کمبود موجودی" value={stats?.lowStockItems || 0} valueStyle={{ color: "#faad14" }} />
-            <Statistic title="آیتم منقضی" value={stats?.expiredItems || 0} valueStyle={{ color: "#ff4d4f" }} />
+            <Statistic title="کل آیتم‌ها" value={stats?.overview?.totalItems || 0} />
+            <Statistic 
+              title="آیتم‌های موجود" 
+              value={(stats?.overview?.totalItems || 0) - (stats?.overview?.outOfStockItems || 0)} 
+            />
+            <Statistic 
+              title="کمبود موجودی" 
+              value={stats?.overview?.lowStockItems || 0} 
+              valueStyle={{ color: "#faad14" }} 
+            />
+            <Statistic 
+              title="آیتم ناموجود" 
+              value={stats?.overview?.outOfStockItems || 0} 
+              valueStyle={{ color: "#ff4d4f" }} 
+            />
           </Space>
         </ProCard>
         {/* Alerts */}
@@ -305,17 +319,100 @@ const InventoryPage: React.FC = () => {
         <ProCard title="گزارش حرکت انبار" collapsible>
           <ProTable
             columns={[
-              { title: "آیتم", dataIndex: "itemName", key: "itemName", width: 180 },
-              { title: "نوع حرکت", dataIndex: "type", key: "type", width: 120, render: (type: MovementType) => <Tag>{type}</Tag> },
-              { title: "مقدار", dataIndex: "amount", key: "amount", width: 100 },
-              { title: "تاریخ", dataIndex: "date", key: "date", width: 120 },
-              { title: "توضیحات", dataIndex: "description", key: "description", width: 200 },
+              { 
+                title: "آیتم", 
+                dataIndex: ["item", "name"], 
+                key: "itemName", 
+                width: 180,
+                render: (text: string, record: any) => (
+                  <Space direction="vertical" size={0}>
+                    <Text strong>{record.item?.name || '-'}</Text>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      {record.item?.sku ? `کد: ${record.item.sku}` : ''}
+                    </Text>
+                  </Space>
+                )
+              },
+              { 
+                title: "نوع حرکت", 
+                dataIndex: "type", 
+                key: "type", 
+                width: 120, 
+                render: (type: string) => (
+                  <Tag color={type === 'IN' ? 'green' : type === 'OUT' ? 'red' : 'orange'}>
+                    {type === 'IN' ? 'ورود' : type === 'OUT' ? 'خروج' : type === 'WASTE' ? 'تلفات' : type}
+                  </Tag>
+                )
+              },
+              { 
+                title: "مقدار", 
+                dataIndex: "quantity", 
+                key: "quantity", 
+                width: 120,
+                render: (quantity: number, record: any) => (
+                  <Space>
+                    <Text>{quantity || '-'}</Text>
+                    <Text type="secondary">{record.item?.unit || ''}</Text>
+                  </Space>
+                )
+              },
+              { 
+                title: "تاریخ", 
+                dataIndex: "createdAt", 
+                key: "createdAt", 
+                width: 140,
+                render: (date: string) => (
+                  date ? new Date(date).toLocaleDateString('fa-IR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }) : '-'
+                )
+              },
+              { 
+                title: "توضیحات", 
+                dataIndex: "notes", 
+                key: "notes", 
+                width: 200,
+                render: (notes: string, record: any) => (
+                  <Space direction="vertical" size={0}>
+                    <Text>{notes || record.reference || '-'}</Text>
+                    {record.unitPrice > 0 && (
+                      <Text type="secondary" style={{ fontSize: '11px' }}>
+                        قیمت واحد: {record.unitPrice.toLocaleString()} تومان
+                      </Text>
+                    )}
+                  </Space>
+                )
+              },
+              { 
+                title: "موجودی", 
+                key: "stock", 
+                width: 120,
+                render: (_, record: any) => (
+                  <Space direction="vertical" size={0}>
+                    <Text type="secondary" style={{ fontSize: '11px' }}>
+                      قبل: {record.previousStock || 0}
+                    </Text>
+                    <Text style={{ fontSize: '12px' }}>
+                      بعد: {record.newStock || 0}
+                    </Text>
+                  </Space>
+                )
+              },
             ]}
             dataSource={movements}
             rowKey="id"
-            pagination={false}
+            pagination={{ defaultPageSize: 10, showSizeChanger: true }}
             search={false}
-            options={false}
+            options={{
+              reload: () => fetchMovements(),
+              density: false,
+              fullScreen: false,
+              setting: false,
+            }}
             size="small"
           />
         </ProCard>

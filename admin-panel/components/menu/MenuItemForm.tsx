@@ -85,6 +85,25 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
         ) as string[];
       }
 
+      // Process ingredients and tags from ProFormList format
+      const processedIngredients = values.ingredients?.map((item: any) => {
+        if (typeof item === 'string') return item;
+        if (typeof item === 'object' && item !== null) {
+          // ProFormList with name="ingredient" returns {ingredient: "value"}
+          return item.ingredient || '';
+        }
+        return '';
+      }).filter((item: string) => item && item.trim()) || [];
+
+      const processedTags = values.tags?.map((item: any) => {
+        if (typeof item === 'string') return item;
+        if (typeof item === 'object' && item !== null) {
+          // ProFormList with name="tag" returns {tag: "value"}
+          return item.tag || '';
+        }
+        return '';
+      }).filter((item: string) => item && item.trim()) || [];
+
       const formData = {
         ...values,
         price: Number(values.price),
@@ -93,10 +112,14 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
         calories: values.calories ? Number(values.calories) : undefined,
         priority: Number(values.priority || 0),
         images: JSON.stringify(imageUrls), // تبدیل آرایه URL ها به JSON string
-        ingredients: JSON.stringify(values.ingredients || []), // تبدیل آرایه به JSON string
-        allergens: JSON.stringify(values.allergens || []), // تبدیل آرایه به JSON string
-        tags: JSON.stringify(values.tags || []) // تبدیل آرایه به JSON string
+        ingredients: JSON.stringify(processedIngredients), // تبدیل آرایه به JSON string
+        tags: JSON.stringify(processedTags) // تبدیل آرایه به JSON string
       };
+
+      console.log('📝 Form values before submission:', values);
+      console.log('📝 Processed ingredients:', processedIngredients);
+      console.log('📝 Processed tags:', processedTags);
+      console.log('📝 Processed form data:', formData);
 
       const url = editingItem 
         ? `/api/menu/items/${editingItem.id}`
@@ -149,15 +172,11 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
     ingredients: (() => {
       try {
         const parsed = JSON.parse(editingItem.ingredients || '[]');
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (error) {
+        if (Array.isArray(parsed)) {
+          // Convert string array to ProFormList format with correct name
+          return parsed.map((ingredient) => ({ ingredient: ingredient }));
+        }
         return [];
-      }
-    })(),
-    allergens: (() => {
-      try {
-        const parsed = JSON.parse(editingItem.allergens || '[]');
-        return Array.isArray(parsed) ? parsed : [];
       } catch (error) {
         return [];
       }
@@ -165,7 +184,11 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
     tags: (() => {
       try {
         const parsed = JSON.parse(editingItem.tags || '[]');
-        return Array.isArray(parsed) ? parsed : [];
+        if (Array.isArray(parsed)) {
+          // Convert string array to ProFormList format with correct name
+          return parsed.map((tag) => ({ tag: tag }));
+        }
+        return [];
       } catch (error) {
         return [];
       }
@@ -322,7 +345,7 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
         }}
       />
 
-      {/* مواد اولیه و آلرژن‌ها */}
+      {/* مواد اولیه و برچسب‌ها */}
       <ProFormList
         name="ingredients"
         label="مواد اولیه"
@@ -330,19 +353,9 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
         creatorButtonProps={{
           creatorButtonText: 'افزودن ماده اولیه'
         }}
+        tooltip="مواد اولیه‌ای که در تهیه این آیتم استفاده می‌شود"
       >
-        <ProFormText placeholder="نام ماده اولیه" />
-      </ProFormList>
-
-      <ProFormList
-        name="allergens"
-        label="آلرژن‌ها"
-        copyIconProps={false}
-        creatorButtonProps={{
-          creatorButtonText: 'افزودن آلرژن'
-        }}
-      >
-        <ProFormText placeholder="نام آلرژن" />
+        <ProFormText name="ingredient" placeholder="مثل: گوشت گوساله، برنج، پیاز" />
       </ProFormList>
 
       <ProFormList
@@ -352,8 +365,9 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
         creatorButtonProps={{
           creatorButtonText: 'افزودن برچسب'
         }}
+        tooltip="برچسب‌هایی برای دسته‌بندی بهتر آیتم"
       >
-        <ProFormText placeholder="مثل: حلال، گیاهی، تند" />
+        <ProFormText name="tag" placeholder="مثل: حلال، گیاهی، تند، محبوب" />
       </ProFormList>
 
       {/* اطلاعات آشپزخانه */}

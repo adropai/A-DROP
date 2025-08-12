@@ -48,6 +48,7 @@ const AntdProvider = ({ children }: AntdProviderProps) => {
         <App>
           <ProConfigProvider 
             valueTypeMap={{}}
+            hashed={false}
           >
             <AntdHydrationSafe>
               {children}

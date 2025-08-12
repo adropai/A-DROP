@@ -151,6 +151,7 @@ export const useCustomersStore = create<CustomersState>((set, get) => ({
 
   // تابع دریافت مشتریان از API
   fetchCustomers: async () => {
+    console.log('🔹 Fetching customers...');
     set({ loading: true });
     try {
       const response = await fetch('/api/customers');
@@ -158,24 +159,28 @@ export const useCustomersStore = create<CustomersState>((set, get) => ({
         throw new Error('خطا در دریافت اطلاعات مشتریان');
       }
       const result = await response.json();
+      console.log('🔹 Fetch customers API response:', result);
       
       if (result.success && result.data) {
+        console.log('🔹 Setting customers:', result.data.length, 'customers');
         set({ customers: result.data, loading: false });
       } else if (Array.isArray(result)) {
         // اگر نتیجه مستقیماً آرایه باشد
+        console.log('🔹 Setting customers (array):', result.length, 'customers');
         set({ customers: result, loading: false });
       } else {
         throw new Error(result.error || 'خطا در دریافت اطلاعات مشتریان');
       }
     } catch (error) {
-      console.error('Error fetching customers:', error);
-      // در صورت خطا، از داده‌های پیش‌فرض استفاده کن
+      console.error('❌ Error fetching customers:', error);
       set({ loading: false });
+      throw error;
     }
   },
 
   // تابع اضافه کردن مشتری با API
   addCustomer: async (customerData) => {
+    console.log('🔹 Adding customer:', customerData);
     set({ loading: true });
     try {
       const response = await fetch('/api/customers', {
@@ -187,6 +192,7 @@ export const useCustomersStore = create<CustomersState>((set, get) => ({
       });
 
       const result = await response.json();
+      console.log('🔹 Add customer API response:', result);
 
       if (result.success && result.data) {
         // اضافه کردن مشتری جدید به لیست
@@ -194,11 +200,17 @@ export const useCustomersStore = create<CustomersState>((set, get) => ({
           customers: [...state.customers, result.data],
           loading: false 
         }));
+        
+        // بروزرسانی لیست کامل مشتریان
+        const { fetchCustomers } = get();
+        await fetchCustomers();
+        
         return Promise.resolve();
       } else {
         throw new Error(result.error || 'خطا در ثبت مشتری');
       }
     } catch (error) {
+      console.error('❌ Error adding customer:', error);
       set({ loading: false });
       throw error;
     }

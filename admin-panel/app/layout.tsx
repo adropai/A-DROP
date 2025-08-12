@@ -26,7 +26,6 @@ export default function RootLayout({
         <title>A-DROP Admin Dashboard</title>
         <meta name="description" content="پنل مدیریت رستوران A-DROP" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#1890ff" />
       </head>
       <body className={inter.className}>

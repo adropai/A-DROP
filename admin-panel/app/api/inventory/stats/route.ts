@@ -1,263 +1,137 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// GET - دریافت آمار انبار
 export async function GET(request: NextRequest) {
   try {
-    // آمار کلی
-    const [
-      totalItems,
-      totalCategories,
-      inStockItems,
-      lowStockItems,
-      outOfStockItems,
-      expiredItems,
-      categoryStats,
-      totalValue,
-      recentMovements
-    ] = await Promise.all([
-      // کل آیتم‌ها
-      prisma.inventoryItem.count({ where: { isActive: true } }),
-      
-      // کل دسته‌بندی‌ها
-      prisma.inventoryCategory.count({ where: { isActive: true } }),
-      
-      // آیتم‌های موجود
-      prisma.inventoryItem.count({
-        where: { 
-          status: 'IN_STOCK',
-          isActive: true 
-        }
-      }),
-      
-      // آیتم‌های کم موجود
-      prisma.inventoryItem.count({
-        where: { 
-          status: 'LOW_STOCK',
-          isActive: true 
-        }
-      }),
-      
-      // آیتم‌های ناموجود
-      prisma.inventoryItem.count({
-        where: { 
-          status: 'OUT_OF_STOCK',
-          isActive: true 
-        }
-      }),
-      
-      // آیتم‌های منقضی شده
-      prisma.inventoryItem.count({
-        where: { 
-          status: 'EXPIRED',
-          isActive: true 
-        }
-      }),
+    console.log('📊 Inventory Stats GET API called');
 
-      // آمار دسته‌بندی‌ها
-      prisma.inventoryCategory.findMany({
-        include: {
-          _count: {
-            select: { items: true }
-          }
-        },
-        where: { isActive: true },
-        orderBy: { name: 'asc' }
-      }),
+    // آمار کلی - ساده
+    const totalItems = await prisma.inventoryItem.count({
+      where: { isActive: true }
+    });
 
-      // مجموع ارزش انبار
-      prisma.inventoryItem.aggregate({
-        _sum: {
-          currentStock: true
-        },
-        where: { isActive: true }
-      }),
+    const totalCategories = await prisma.inventoryCategory.count({
+      where: { isActive: true }
+    });
 
-      // حرکات اخیر
-      prisma.stockMovement.count({
-        where: {
-          createdAt: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // آخرین هفته
-          }
-        }
-      })
-    ]);
+    const totalMovements = await prisma.stockMovement.count();
 
-    // آیتم‌های نیاز به سفارش مجدد
-    const reorderItems = await prisma.inventoryItem.count({
+    const outOfStockItems = await prisma.inventoryItem.count({
       where: {
-        AND: [
-          { isActive: true },
-          { autoReorder: true },
-          {
-            OR: [
-              { currentStock: { lte: prisma.inventoryItem.fields.minStock } },
-              { currentStock: { lte: prisma.inventoryItem.fields.reorderPoint } }
-            ]
-          }
-        ]
+        isActive: true,
+        currentStock: { lte: 0 }
       }
     });
 
-    // آیتم‌های نزدیک به انقضا (30 روز آینده)
-    const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    const expiryAlerts = await prisma.inventoryItem.count({
-      where: {
-        AND: [
-          { isActive: true },
-          { expiryDate: { lte: thirtyDaysFromNow } },
-          { expiryDate: { gte: new Date() } }
-        ]
+    // آیتم‌های کم موجود
+    const allItems = await prisma.inventoryItem.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        currentStock: true,
+        minStock: true
       }
     });
 
-    // روند موجودی (آخرین 7 روز)
-    const stockTrend = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dayStart = new Date(date.setHours(0, 0, 0, 0));
-      const dayEnd = new Date(date.setHours(23, 59, 59, 999));
+    const lowStockItems = allItems.filter(item => 
+      item.currentStock <= item.minStock
+    ).length;
 
-      const [inStock, lowStock, outOfStock] = await Promise.all([
-        prisma.inventoryItem.count({
-          where: {
-            status: 'IN_STOCK',
-            isActive: true,
-            updatedAt: { gte: dayStart, lte: dayEnd }
-          }
-        }),
-        prisma.inventoryItem.count({
-          where: {
-            status: 'LOW_STOCK',
-            isActive: true,
-            updatedAt: { gte: dayStart, lte: dayEnd }
-          }
-        }),
-        prisma.inventoryItem.count({
-          where: {
-            status: 'OUT_OF_STOCK',
-            isActive: true,
-            updatedAt: { gte: dayStart, lte: dayEnd }
-          }
-        })
-      ]);
-
-      stockTrend.push({
-        date: dayStart.toISOString().split('T')[0],
-        inStock,
-        lowStock,
-        outOfStock
-      });
-    }
-
-    // آمار حرکات بر اساس نوع
-    const movementStats = await prisma.stockMovement.groupBy({
-      by: ['type'],
-      _count: {
-        type: true
-      },
+    // ارزش کل
+    const totalValue = await prisma.inventoryItem.aggregate({
+      where: { isActive: true },
       _sum: {
-        totalValue: true
-      },
-      where: {
-        createdAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // آخرین ماه
+        unitPrice: true
+      }
+    });
+
+    // آمار دسته‌بندی‌ها
+    const categories = await prisma.inventoryCategory.findMany({
+      where: { isActive: true },
+      include: {
+        items: {
+          where: { isActive: true }
         }
       }
     });
 
-    const movementsByType = movementStats.map(stat => ({
-      type: stat.type,
-      count: stat._count.type,
-      value: stat._sum.totalValue || 0
+    const categoryData = categories.map(category => ({
+      id: category.id,
+      name: category.name,
+      color: category.color,
+      itemsCount: category.items.length,
+      totalStock: category.items.reduce((sum, item) => sum + item.currentStock, 0),
+      totalValue: category.items.reduce((sum, item) => sum + (item.currentStock * item.unitPrice), 0),
+      lowStockCount: category.items.filter(item => item.currentStock <= item.minStock).length
     }));
 
-    // تاپ دسته‌بندی‌ها بر اساس تعداد آیتم و ارزش
-    const topCategories = await Promise.all(
-      categoryStats.slice(0, 5).map(async (category) => {
-        const totalValue = await prisma.inventoryItem.aggregate({
-          _sum: {
-            currentStock: true,
-            price: true
-          },
-          where: {
-            categoryId: category.id,
-            isActive: true
-          }
-        });
+    // آیتم‌های کم موجود جزئیات
+    const lowStockDetails = await prisma.inventoryItem.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { currentStock: { lte: 0 } }
+        ]
+      },
+      include: {
+        category: true
+      },
+      orderBy: { currentStock: 'asc' },
+      take: 10
+    });
 
-        return {
-          categoryName: category.name,
-          itemCount: category._count.items,
-          totalValue: (totalValue._sum.currentStock || 0) * (totalValue._sum.price || 0)
-        };
-      })
-    );
+    // حرکت‌های اخیر
+    const recentMovements = await prisma.stockMovement.findMany({
+      include: {
+        item: {
+          select: {
+            name: true,
+            sku: true,
+            unit: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10
+    });
+
+    const stats = {
+      overview: {
+        totalItems,
+        totalCategories,
+        totalMovements,
+        lowStockItems,
+        outOfStockItems,
+        totalValue: totalValue._sum.unitPrice || 0
+      },
+      categories: categoryData,
+      lowStockItems: lowStockDetails,
+      recentMovements
+    };
 
     return NextResponse.json({
       success: true,
-      data: {
-        // آمار اصلی
-        totalItems,
-        totalCategories,
-        inStockItems,
-        lowStockItems,
-        outOfStockItems,
-        expiredItems,
-        totalValue: totalValue._sum.currentStock || 0,
-        lowStockAlerts: lowStockItems,
-        expiryAlerts,
-        recentMovements,
-        reorderItems,
-
-        // آمار تفصیلی
-        overview: {
-          totalItems,
-          totalCategories,
-          inStockItems,
-          lowStockItems,
-          outOfStockItems,
-          expiredItems,
-          activeItems: inStockItems + lowStockItems
-        },
-
-        // آمار دسته‌بندی‌ها
-        categories: categoryStats.map(cat => ({
-          id: cat.id,
-          name: cat.name,
-          itemCount: cat._count.items
-        })),
-
-        // تاپ دسته‌بندی‌ها
-        topCategories,
-
-        // روند موجودی
-        stockTrend,
-
-        // آمار حرکات
-        movementsByType,
-
-        // هشدارها
-        alerts: {
-          lowStock: lowStockItems,
-          outOfStock: outOfStockItems,
-          expired: expiredItems,
-          expiringSoon: expiryAlerts,
-          reorderNeeded: reorderItems
-        }
-      }
+      data: stats
     });
 
   } catch (error) {
-    console.error('Error fetching inventory stats:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'خطا در دریافت آمار انبار',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
+    console.error('❌ Inventory Stats GET error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'خطا در دریافت آمار انبار',
+      data: {
+        overview: {
+          totalItems: 0,
+          totalCategories: 0,
+          totalMovements: 0,
+          lowStockItems: 0,
+          outOfStockItems: 0,
+          totalValue: 0
+        },
+        categories: [],
+        lowStockItems: [],
+        recentMovements: []
+      }
+    }, { status: 500 });
   }
 }

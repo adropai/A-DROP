@@ -1,213 +1,94 @@
 'use client'
 
-import { useState, useRef, useMemo, useEffect } from 'react'
-import { ProTable, ProDescriptions, ProForm, ProFormSelect, LightFilter } from '@ant-design/pro-components'
-import { Button, Modal, message, Tag, Drawer, Card, Typography, Space, Badge, Row, Col, Segmented } from 'antd'
-import { EyeOutlined, EditOutlined, PrinterOutlined, CheckCircleOutlined, ShoppingCartOutlined, UserOutlined, ClockCircleOutlined, TableOutlined, AppstoreOutlined } from '@ant-design/icons'
-import type { ActionType, ProColumns } from '@ant-design/pro-components'
-import { useOrdersStore } from '../../stores/orders-store'
-import { Order, OrderStatus } from '../../types/orders'
-import OrderCard from '../../components/orders/OrderCard'
-import { ProTableWrapper, AntdHydrationSafe, getConsistentProTableProps } from '@/lib/hydration-fix'
+import { useState, useEffect } from 'react'
+import { Card, Table, Tag, Space, Typography, Row, Col, Statistic, Button, message, Modal, Descriptions, Select, Divider } from 'antd'
+import { ShoppingCartOutlined, UserOutlined, ClockCircleOutlined, CheckCircleOutlined, EyeOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import CreateOrderForm from '@/components/orders/CreateOrderForm'
 
-const { Title, Text } = Typography
+const { Title } = Typography
+const { Option } = Select
+
+interface Order {
+  id: string;
+  orderNumber: string;
+  customer: { name: string; phone: string };
+  items: Array<{ id: string; name: string; quantity: number; price: number }>;
+  totalAmount: number;
+  status: string;
+  type: string;
+  createdAt: string;
+}
 
 export default function OrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [drawerVisible, setDrawerVisible] = useState(false)
-  const [statusModalVisible, setStatusModalVisible] = useState(false)
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table')
-  const actionRef = useRef<ActionType>()
-  
-  // استفاده از Zustand store
-  const { orders, loading, fetchOrders, setStatus } = useOrdersStore()
+  const [isViewModalVisible, setIsViewModalVisible] = useState(false)
+  const [isStatusModalVisible, setIsStatusModalVisible] = useState(false)
+  const [isCreateOrderVisible, setIsCreateOrderVisible] = useState(false)
+  const [newStatus, setNewStatus] = useState<string>('')
 
-  // بارگذاری سفارشات هنگام شروع
   useEffect(() => {
     fetchOrders()
-  }, [fetchOrders])
+  }, [])
 
-  // Memoized status options برای بهبود performance
-  const statusOptions = useMemo(() => [
-    { value: 'New', label: 'جدید', color: 'orange' },
-    { value: 'Confirmed', label: 'تایید شده', color: 'blue' },
-    { value: 'Preparing', label: 'در حال آماده‌سازی', color: 'cyan' },
-    { value: 'Ready', label: 'آماده تحویل', color: 'green' },
-    { value: 'Delivering', label: 'در حال ارسال', color: 'purple' },
-    { value: 'Delivered', label: 'تحویل شده', color: 'default' },
-    { value: 'Cancelled', label: 'لغو شده', color: 'red' }
-  ], [])
-
-  // Memoized order summary for performance
-  const orderSummary = useMemo(() => {
-    const totalOrders = orders.length
-    const newOrders = orders.filter(o => o.status === 'New').length
-    const preparingOrders = orders.filter(o => o.status === 'Preparing').length
-    const readyOrders = orders.filter(o => o.status === 'Ready').length
-    
-    return { totalOrders, newOrders, preparingOrders, readyOrders }
-  }, [orders])
-
-  const columns: ProColumns<Order>[] = [
-    {
-      title: 'شماره سفارش',
-      dataIndex: 'id',
-      copyable: true,
-      width: 120,
-      render: (text) => `#${text}`,
-    },
-    {
-      title: 'مشتری',
-      dataIndex: 'customer',
-      search: false,
-      render: (_: any, record: Order) => (
-        <div>
-          <div className="flex items-center gap-1">
-            <UserOutlined className="text-gray-400" />
-            <span>{record.customer.name}</span>
-          </div>
-          <div style={{ fontSize: '12px', color: '#666' }}>{record.customer.phone}</div>
-        </div>
-      ),
-    },
-    {
-      title: 'مبلغ کل',
-      dataIndex: 'amount',
-      valueType: 'money',
-      search: false,
-      render: (_: any, record: Order) => (
-        <span className="font-semibold text-green-600">
-          {record.amount.toLocaleString()} تومان
-        </span>
-      ),
-    },
-    {
-      title: 'وضعیت',
-      dataIndex: 'status',
-      valueType: 'select',
-      valueEnum: {
-        New: { text: 'جدید', status: 'Warning' },
-        Confirmed: { text: 'تایید شده', status: 'Processing' },
-        Preparing: { text: 'در حال آماده‌سازی', status: 'Processing' },
-        Ready: { text: 'آماده تحویل', status: 'Success' },
-        Delivering: { text: 'در حال ارسال', status: 'Processing' },
-        Delivered: { text: 'تحویل شده', status: 'Default' },
-        Cancelled: { text: 'لغو شده', status: 'Error' }
-      },
-      render: (_: any, record: Order) => {
-        const statusConfig = statusOptions.find(s => s.value === record.status)
-        return <Badge status={getStatusType(record.status)} text={statusConfig?.label} />
+  const fetchOrders = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/orders')
+      const data = await response.json()
+      console.log('📦 Orders data received:', data)
+      
+      if (data.orders && Array.isArray(data.orders)) {
+        setOrders(data.orders)
+      } else {
+        setOrders([])
       }
-    },
-    {
-      title: 'تعداد اقلام',
-      dataIndex: 'items',
-      search: false,
-      render: (_: any, record: Order) => (
-        <div className="flex items-center gap-1">
-          <ShoppingCartOutlined className="text-gray-400" />
-          <span>{record.items.length} قلم</span>
-        </div>
-      ),
-    },
-    {
-      title: 'زمان سفارش',
-      dataIndex: 'createdAt',
-      valueType: 'dateTime',
-      search: false,
-      render: (_: any, record: Order) => (
-        <div className="flex items-center gap-1">
-          <ClockCircleOutlined className="text-gray-400" />
-          <span>{new Date(record.createdAt).toLocaleString('fa-IR')}</span>
-        </div>
-      ),
-    },
-    {
-      title: 'عملیات',
-      valueType: 'option',
-      width: 180,
-      render: (_: any, record: Order) => [
-        <Button
-          key="view"
-          type="link"
-          size="small"
-          icon={<EyeOutlined />}
-          onClick={() => handleViewOrder(record)}
-        >
-          مشاهده
-        </Button>,
-        <Button
-          key="status"
-          type="link"
-          size="small"
-          icon={<EditOutlined />}
-          onClick={() => handleChangeStatus(record)}
-          disabled={record.status === 'Delivered' || record.status === 'Cancelled'}
-        >
-          تغییر وضعیت
-        </Button>,
-        <Button
-          key="print"
-          type="link"
-          size="small"
-          icon={<PrinterOutlined />}
-          onClick={() => handlePrintReceipt(record)}
-        >
-          پرینت
-        </Button>,
-      ],
-    },
-  ]
-
-  const getStatusType = (status: OrderStatus): any => {
-    switch (status) {
-      case 'New': return 'warning'
-      case 'Confirmed': return 'processing'
-      case 'Preparing': return 'processing'
-      case 'Ready': return 'success'
-      case 'Delivering': return 'processing'
-      case 'Delivered': return 'default'
-      case 'Cancelled': return 'error'
-      default: return 'default'
+    } catch (error) {
+      console.error('Error fetching orders:', error)
+      message.error('خطا در دریافت سفارشات')
+      setOrders([])
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleViewOrder = (order: Order) => {
     setSelectedOrder(order)
-    setDrawerVisible(true)
+    setIsViewModalVisible(true)
   }
 
   const handleChangeStatus = (order: Order) => {
     setSelectedOrder(order)
-    setStatusModalVisible(true)
+    setNewStatus(order.status)
+    setIsStatusModalVisible(true)
   }
 
-  const handlePrintReceipt = (order: Order) => {
-    message.success('فاکتور در حال پرینت است...')
-    // Logic for printing receipt
-  }
+  const handleStatusUpdate = async () => {
+    if (!selectedOrder || !newStatus) return
 
-  const handleStatusUpdate = async (values: { status: OrderStatus }) => {
     try {
-      if (selectedOrder) {
-        // ارسال درخواست به API
-        const response = await fetch(`/api/orders/${selectedOrder.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ status: values.status }),
-        })
+      // API call to update status
+      const response = await fetch(`/api/orders/${selectedOrder.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      })
 
-        if (response.ok) {
-          setStatus(selectedOrder.id, values.status)
-          message.success('وضعیت سفارش با موفقیت به‌روزرسانی شد')
-          setStatusModalVisible(false)
-          setSelectedOrder(null)
-          actionRef.current?.reload()
-        } else {
-          throw new Error('خطا در ارسال درخواست')
-        }
+      if (response.ok) {
+        message.success('وضعیت سفارش به‌روزرسانی شد')
+        // Update local state
+        setOrders(orders.map(order => 
+          order.id === selectedOrder.id 
+            ? { ...order, status: newStatus }
+            : order
+        ))
+        setIsStatusModalVisible(false)
+        setSelectedOrder(null)
+      } else {
+        throw new Error('خطا در به‌روزرسانی')
       }
     } catch (error) {
       console.error('Error updating status:', error)
@@ -215,247 +96,301 @@ export default function OrdersPage() {
     }
   }
 
-  const getOrderSummary = () => {
-    return orderSummary
+  const handleCreateOrderSuccess = () => {
+    fetchOrders() // Refresh orders list after creating new order
   }
 
-  const { totalOrders, newOrders, preparingOrders, readyOrders } = getOrderSummary()
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'New': return 'blue'
+      case 'Preparing': return 'orange' 
+      case 'Ready': return 'green'
+      case 'Delivered': return 'default'
+      case 'Cancelled': return 'red'
+      default: return 'default'
+    }
+  }
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'New': return 'جدید'
+      case 'Preparing': return 'در حال آماده‌سازی'
+      case 'Ready': return 'آماده تحویل'
+      case 'Delivered': return 'تحویل شده'
+      case 'Cancelled': return 'لغو شده'
+      default: return status
+    }
+  }
+
+  const orderSummary = {
+    total: orders.length,
+    new: orders.filter(o => o.status === 'New').length,
+    preparing: orders.filter(o => o.status === 'Preparing').length,
+    ready: orders.filter(o => o.status === 'Ready').length
+  }
+
+  const columns = [
+    {
+      title: 'شماره سفارش',
+      dataIndex: 'orderNumber',
+      key: 'orderNumber',
+    },
+    {
+      title: 'مشتری',
+      dataIndex: ['customer', 'name'],
+      key: 'customer',
+    },
+    {
+      title: 'تلفن',
+      dataIndex: ['customer', 'phone'],
+      key: 'phone',
+    },
+    {
+      title: 'مبلغ کل',
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
+      render: (amount: number) => `${amount.toLocaleString()} تومان`
+    },
+    {
+      title: 'وضعیت',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => (
+        <Tag color={getStatusColor(status)}>
+          {getStatusText(status)}
+        </Tag>
+      )
+    },
+    {
+      title: 'نوع سفارش',
+      dataIndex: 'type',
+      key: 'type',
+      render: (type: string) => {
+        const typeColors: { [key: string]: string } = {
+          'Dine-in': 'blue',
+          'Takeaway': 'orange', 
+          'Delivery': 'green'
+        }
+        
+        const typeTexts: { [key: string]: string } = {
+          'Dine-in': 'حضوری',
+          'Takeaway': 'بیرون بر',
+          'Delivery': 'پیک'
+        }
+        
+        return (
+          <Tag color={typeColors[type] || 'default'}>
+            {typeTexts[type] || type}
+          </Tag>
+        )
+      }
+    },
+    {
+      title: 'عملیات',
+      key: 'actions',
+      render: (_, order: Order) => (
+        <Space>
+          <Button 
+            size="small" 
+            icon={<EyeOutlined />}
+            onClick={() => handleViewOrder(order)}
+          >
+            مشاهده
+          </Button>
+          <Button 
+            size="small" 
+            type="primary"
+            icon={<EditOutlined />}
+            onClick={() => handleChangeStatus(order)}
+          >
+            تغییر وضعیت
+          </Button>
+        </Space>
+      )
+    }
+  ]
 
   return (
-    <AntdHydrationSafe>
-      <div className="orders-management p-6">
-      {/* آمار خلاصه */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{totalOrders}</div>
-            <div className="text-gray-500">کل سفارشات</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600">{newOrders}</div>
-            <div className="text-gray-500">سفارشات جدید</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-cyan-600">{preparingOrders}</div>
-            <div className="text-gray-500">در حال آماده‌سازی</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{readyOrders}</div>
-            <div className="text-gray-500">آماده تحویل</div>
-          </div>
-        </Card>
+    <div className="p-6">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <Title level={2}>مدیریت سفارشات</Title>
+        <Button 
+          type="primary" 
+          icon={<PlusOutlined />}
+          size="large"
+          onClick={() => setIsCreateOrderVisible(true)}
+        >
+          ثبت سفارش جدید
+        </Button>
       </div>
+      
+      {/* آمار خلاصه */}
+      <Row gutter={16} className="mb-6">
+        <Col span={6}>
+          <Card>
+            <Statistic 
+              title="کل سفارشات" 
+              value={orderSummary.total} 
+              prefix={<ShoppingCartOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic 
+              title="سفارشات جدید" 
+              value={orderSummary.new} 
+              prefix={<ClockCircleOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic 
+              title="در حال آماده‌سازی" 
+              value={orderSummary.preparing} 
+              prefix={<UserOutlined />}
+              valueStyle={{ color: '#fa8c16' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic 
+              title="آماده تحویل" 
+              value={orderSummary.ready} 
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+      </Row>
 
       {/* جدول سفارشات */}
-      {viewMode === 'table' && (
-        <ProTableWrapper>
-          <ProTable<Order>
-            columns={columns}
-            actionRef={actionRef}
-            request={async (params) => {
-              // فیلتر کردن بر اساس وضعیت
-              let filteredOrders = orders;
-              if (params.status) {
-                filteredOrders = orders.filter(order => order.status === params.status);
-              }
-              
-              return {
-                data: filteredOrders,
-                success: true,
-                total: filteredOrders.length,
-              }
-            }}
-            rowKey="id"
-            {...getConsistentProTableProps()}
-            headerTitle="مدیریت سفارشات"
-          toolBarRender={() => [
-            <Segmented
-              key="view-mode"
-              value={viewMode}
-              onChange={(value) => setViewMode(value as 'table' | 'cards')}
-              options={[
-                { label: 'جدول', value: 'table', icon: <TableOutlined /> },
-                { label: 'کارت', value: 'cards', icon: <AppstoreOutlined /> }
-              ]}
-            />,
-            <LightFilter key="filter">
-              <ProFormSelect
-                name="status"
-                placeholder="فیلتر بر اساس وضعیت"
-                options={statusOptions}
-              />
-            </LightFilter>
-          ]}
-          />
-        </ProTableWrapper>
-      )}
+      <Card>
+        <Table
+          columns={columns}
+          dataSource={orders}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => 
+              `نمایش ${range[0]} تا ${range[1]} از ${total} سفارش`
+          }}
+        />
+      </Card>
 
-      {/* نمایش کارتی سفارشات */}
-      {viewMode === 'cards' && (
-        <Card className="mt-4" title="نمایش کارتی سفارشات">
-          <Row gutter={[16, 16]}>
-            {orders.map(order => (
-              <Col xs={24} sm={12} lg={8} xl={6} key={order.id}>
-                <OrderCard
-                  order={order}
-                  onView={handleViewOrder}
-                  onStatusChange={handleChangeStatus}
-                  onPrint={handlePrintReceipt}
-                />
-              </Col>
-            ))}
-          </Row>
-        </Card>
-      )}
-
-      {/* درا جزئیات سفارش */}
-      <Drawer
-        title="جزئیات سفارش"
-        placement="right"
-        size="large"
-        open={drawerVisible}
-        onClose={() => setDrawerVisible(false)}
+      {/* Modal مشاهده جزئیات سفارش */}
+      <Modal
+        title={`جزئیات سفارش - ${selectedOrder?.orderNumber}`}
+        open={isViewModalVisible}
+        onCancel={() => setIsViewModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setIsViewModalVisible(false)}>
+            بستن
+          </Button>
+        ]}
+        width={800}
       >
         {selectedOrder && (
           <div>
-            <ProDescriptions
-              title="اطلاعات سفارش"
-              dataSource={selectedOrder}
+            <Descriptions bordered column={2}>
+              <Descriptions.Item label="شماره سفارش" span={1}>
+                {selectedOrder.orderNumber}
+              </Descriptions.Item>
+              <Descriptions.Item label="وضعیت" span={1}>
+                <Tag color={getStatusColor(selectedOrder.status)}>
+                  {getStatusText(selectedOrder.status)}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="نام مشتری" span={1}>
+                {selectedOrder.customer.name}
+              </Descriptions.Item>
+              <Descriptions.Item label="شماره تلفن" span={1}>
+                {selectedOrder.customer.phone}
+              </Descriptions.Item>
+              <Descriptions.Item label="نوع سفارش" span={1}>
+                {selectedOrder.type}
+              </Descriptions.Item>
+              <Descriptions.Item label="مبلغ کل" span={1}>
+                {selectedOrder.totalAmount.toLocaleString('fa-IR')} تومان
+              </Descriptions.Item>
+              <Descriptions.Item label="تاریخ سفارش" span={2}>
+                {new Date(selectedOrder.createdAt).toLocaleDateString('fa-IR', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </Descriptions.Item>
+            </Descriptions>
+
+            <Divider orientation="right">آیتم‌های سفارش</Divider>
+            <Table
+              size="small"
+              dataSource={selectedOrder.items}
+              rowKey="id"
+              pagination={false}
               columns={[
-                {
-                  title: 'شماره سفارش',
-                  key: 'id',
-                  dataIndex: 'id',
-                  render: (text) => `#${text}`,
+                { title: 'نام آیتم', dataIndex: 'name', key: 'name' },
+                { title: 'تعداد', dataIndex: 'quantity', key: 'quantity' },
+                { 
+                  title: 'قیمت واحد', 
+                  dataIndex: 'price', 
+                  key: 'price',
+                  render: (price: number) => `${price.toLocaleString('fa-IR')} تومان`
                 },
-                {
-                  title: 'نام مشتری',
-                  key: 'customerName',
-                  dataIndex: ['customer', 'name'],
-                },
-                {
-                  title: 'شماره تماس',
-                  key: 'customerPhone',
-                  dataIndex: ['customer', 'phone'],
-                },
-                {
-                  title: 'وضعیت',
-                  key: 'status',
-                  dataIndex: 'status',
-                  render: (status) => {
-                    const statusConfig = statusOptions.find(s => s.value === status)
-                    return <Tag color={statusConfig?.color}>{statusConfig?.label}</Tag>
-                  }
-                },
-                {
-                  title: 'زمان سفارش',
-                  key: 'createdAt',
-                  dataIndex: 'createdAt',
-                  render: (date: string) => new Date(date).toLocaleString('fa-IR'),
-                },
+                { 
+                  title: 'قیمت کل', 
+                  key: 'total',
+                  render: (_, item: any) => `${(item.quantity * item.price).toLocaleString('fa-IR')} تومان`
+                }
               ]}
             />
-
-            <div className="mt-6">
-              <Title level={4}>اقلام سفارش</Title>
-              <ProTable<Order['items'][0]>
-                columns={[
-                  {
-                    title: 'نام محصول',
-                    dataIndex: 'name',
-                    search: false,
-                  },
-                  {
-                    title: 'تعداد',
-                    dataIndex: 'quantity',
-                    valueType: 'digit',
-                    search: false,
-                  },
-                  {
-                    title: 'قیمت واحد',
-                    dataIndex: 'price',
-                    valueType: 'money',
-                    search: false,
-                    render: (_: any, record: any) => `${record.price.toLocaleString()} تومان`,
-                  },
-                  {
-                    title: 'مجموع',
-                    search: false,
-                    render: (_: any, record: any) => `${(record.quantity * record.price).toLocaleString()} تومان`,
-                  },
-                ]}
-                dataSource={selectedOrder.items}
-                pagination={false}
-                search={false}
-                toolBarRender={false}
-                options={false}
-              />
-              
-              <div className="mt-4 text-right">
-                <strong className="text-lg text-green-600">
-                  مجموع کل: {selectedOrder.amount.toLocaleString()} تومان
-                </strong>
-              </div>
-            </div>
-          </div>
-        )}
-      </Drawer>
-
-      {/* مودال تغییر وضعیت */}
-      <Modal
-        title="تغییر وضعیت سفارش"
-        open={statusModalVisible}
-        onCancel={() => setStatusModalVisible(false)}
-        footer={null}
-      >
-        {selectedOrder && (
-          <div>
-            <div className="mb-4">
-              <Text strong>وضعیت فعلی: </Text>
-              <Tag color={statusOptions.find(s => s.value === selectedOrder.status)?.color}>
-                {statusOptions.find(s => s.value === selectedOrder.status)?.label}
-              </Tag>
-              
-              <div className="mt-4">
-                <Text type="secondary">مراحل پردازش سفارش:</Text>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {statusOptions.slice(0, -1).map((status, index) => (
-                    <div
-                      key={status.value}
-                      className={`px-3 py-1 rounded text-sm ${
-                        statusOptions.findIndex(s => s.value === selectedOrder.status) >= index
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-200 text-gray-600'
-                      }`}
-                    >
-                      {status.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            <ProForm
-              onFinish={handleStatusUpdate}
-              initialValues={{ status: selectedOrder.status }}
-            >
-              <ProFormSelect
-                name="status"
-                label="وضعیت جدید"
-                options={statusOptions.filter(s => s.value !== 'Cancelled')}
-                rules={[{ required: true, message: 'انتخاب وضعیت الزامی است' }]}
-              />
-            </ProForm>
           </div>
         )}
       </Modal>
-      </div>
-    </AntdHydrationSafe>
+
+      {/* Modal تغییر وضعیت */}
+      <Modal
+        title={`تغییر وضعیت سفارش - ${selectedOrder?.orderNumber}`}
+        open={isStatusModalVisible}
+        onOk={handleStatusUpdate}
+        onCancel={() => setIsStatusModalVisible(false)}
+        okText="تأیید تغییر"
+        cancelText="انصراف"
+      >
+        {selectedOrder && (
+          <div>
+            <p>وضعیت فعلی: <Tag color={getStatusColor(selectedOrder.status)}>{getStatusText(selectedOrder.status)}</Tag></p>
+            <Divider />
+            <p>انتخاب وضعیت جدید:</p>
+            <Select
+              style={{ width: '100%' }}
+              value={newStatus}
+              onChange={setNewStatus}
+              placeholder="وضعیت جدید را انتخاب کنید"
+            >
+              <Option value="New">جدید</Option>
+              <Option value="Preparing">در حال آماده‌سازی</Option>
+              <Option value="Ready">آماده تحویل</Option>
+              <Option value="Delivered">تحویل شده</Option>
+              <Option value="Cancelled">لغو شده</Option>
+            </Select>
+          </div>
+        )}
+      </Modal>
+      
+      {/* فرم ثبت سفارش جدید */}
+      <CreateOrderForm
+        visible={isCreateOrderVisible}
+        onCancel={() => setIsCreateOrderVisible(false)}
+        onSuccess={handleCreateOrderSuccess}
+      />
+    </div>
   )
 }

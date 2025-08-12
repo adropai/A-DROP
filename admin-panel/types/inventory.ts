@@ -82,32 +82,25 @@ export interface StockMovement {
 
 // آمار انبار
 export interface InventoryStats {
-  totalItems: number
-  totalCategories: number
-  inStockItems: number
-  lowStockItems: number
-  outOfStockItems: number
-  expiredItems: number
-  totalValue: number
-  lowStockAlerts: number
-  expiryAlerts: number
-  recentMovements: number
-  topCategories: {
-    categoryName: string
-    itemCount: number
+  overview: {
+    totalItems: number
+    totalCategories: number
+    totalMovements: number
+    lowStockItems: number
+    outOfStockItems: number
     totalValue: number
-  }[]
-  stockTrend: {
-    date: string
-    inStock: number
-    lowStock: number
-    outOfStock: number
-  }[]
-  movementsByType: {
-    type: MovementType
-    count: number
-    value: number
-  }[]
+  }
+  categories: Array<{
+    id: string
+    name: string
+    color: string
+    itemsCount: number
+    totalStock: number
+    totalValue: number
+    lowStockCount: number
+  }>
+  lowStockItems: Array<any>
+  recentMovements: Array<any>
 }
 
 // فیلتر انبار

@@ -4,12 +4,16 @@ import { prisma } from '@/lib/prisma';
 // GET /api/customers - دریافت لیست مشتریان
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔹 GET /api/customers called');
+    
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const search = searchParams.get('search') || '';
     const tier = searchParams.get('tier');
     const status = searchParams.get('status');
+
+    console.log('🔹 Query params:', { page, limit, search, tier, status });
 
     const skip = (page - 1) * limit;
 
@@ -27,7 +31,10 @@ export async function GET(request: NextRequest) {
     if (tier) where.tier = tier;
     if (status) where.status = status;
 
+    console.log('🔹 Where conditions:', where);
+
     // دریافت مشتریان از دیتابیس
+    console.log('🔹 Fetching from database...');
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where,
@@ -35,28 +42,30 @@ export async function GET(request: NextRequest) {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          orders: {
-            select: {
-              id: true,
-              totalAmount: true,
-              createdAt: true,
-            }
-          }
+          addresses: true,
+          preferences: true,
+          stats: true,
+          tags: true
         }
       }),
       prisma.customer.count({ where })
     ]);
 
+    console.log('🔹 Database result:', { 
+      customersCount: customers.length, 
+      total,
+      customers: customers.map(c => ({ id: c.id, name: c.name, phone: c.phone }))
+    });
+
     // محاسبه آمار برای هر مشتری
     const customersWithStats = customers.map((customer: any) => ({
       ...customer,
-      stats: {
-        totalOrders: customer.orders?.length || 0,
-        totalSpent: customer.orders?.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0) || 0,
-        lastOrderDate: customer.orders?.[0]?.createdAt || null,
-        averageOrderValue: customer.orders?.length > 0 
-          ? customer.orders.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0) / customer.orders.length 
-          : 0
+      tags: customer.tags?.map((tag: any) => tag.name) || [],
+      stats: customer.stats || {
+        totalOrders: 0,
+        totalSpent: 0,
+        lastOrderDate: null,
+        averageOrderValue: 0
       }
     }));
 
@@ -84,6 +93,7 @@ export async function GET(request: NextRequest) {
         avatar: null,
         tier: 'Gold',
         status: 'Active',
+        tags: ['VIP', 'وفادار'],
         createdAt: new Date(),
         updatedAt: new Date(),
         stats: {
@@ -120,8 +130,12 @@ export async function POST(request: NextRequest) {
       gender, 
       tier = 'Bronze', 
       status = 'Active',
-      avatar 
+      avatar,
+      tags = [],
+      notes
     } = body;
+
+    console.log('🔹 Creating customer with data:', { name, email, phone, tier, status, tags });
 
     // بررسی اعتبار داده‌های اصلی
     if (!name || !phone) {
@@ -142,12 +156,31 @@ export async function POST(request: NextRequest) {
         gender,
         tier,
         status,
+        tags: {
+          create: (tags || []).map((tagName: string) => ({
+            name: tagName,
+          })),
+        },
+      },
+      include: {
+        tags: true,
+        addresses: true,
+        preferences: true,
+        stats: true,
       },
     });
 
+    // تبدیل tags به array از strings
+    const customerWithTags = {
+      ...newCustomer,
+      tags: newCustomer.tags.map(tag => tag.name),
+    };
+
+    console.log('🔹 Customer created successfully:', customerWithTags.id);
+
     return NextResponse.json({
       success: true,
-      data: newCustomer,
+      data: customerWithTags,
       message: 'مشتری جدید با موفقیت اضافه شد',
     });
   } catch (error) {

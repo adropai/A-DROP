@@ -1,125 +1,102 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// GET - دریافت آمار کلی منو
 export async function GET(request: NextRequest) {
   try {
-    // دریافت آمار همزمان
-    const [
-      totalItems,
-      totalCategories,
-      availableItems,
-      specialItems,
-      categoryStats,
-      priceRange
-    ] = await Promise.all([
-      // کل آیتم‌ها
-      prisma.menuItem.count(),
-      
-      // کل دسته‌بندی‌ها
-      prisma.category.count(),
-      
-      // آیتم‌های موجود
-      prisma.menuItem.count({
-        where: { isAvailable: true }
-      }),
-      
-      // آیتم‌های ویژه
-      prisma.menuItem.count({
-        where: { isSpecial: true }
-      }),
-      
-      // آمار دسته‌بندی‌ها با تعداد آیتم‌ها
-      prisma.category.findMany({
-        include: {
-          _count: {
-            select: { menuItems: true }
-          }
-        },
-        where: { isActive: true },
-        orderBy: { name: 'asc' }
-      }),
-      
-      // محدوده قیمت
-      prisma.menuItem.aggregate({
-        _min: { price: true },
-        _max: { price: true },
-        _avg: { price: true }
-      })
-    ]);
-
-    // آیتم‌های پرفروش
-    const topSelling = await prisma.menuItem.findMany({
-      take: 5,
-      orderBy: { soldCount: 'desc' },
+    console.log('📊 Menu stats API called');
+    
+    // Get total items count
+    const totalItems = await prisma.menuItem.count();
+    
+    // Get available items count
+    const availableItems = await prisma.menuItem.count({
+      where: { isAvailable: true }
+    });
+    
+    // Get special items count  
+    const specialItems = await prisma.menuItem.count({
+      where: { isSpecial: true }
+    });
+    
+    // Get total categories count
+    const totalCategories = await prisma.category.count({
+      where: { isActive: true }
+    });
+    
+    // Get category stats
+    const categoryStats = await prisma.category.findMany({
+      where: { isActive: true },
+      include: {
+        _count: {
+          select: { menuItems: true }
+        }
+      },
+      orderBy: { priority: 'desc' },
+      take: 5
+    });
+    
+    // Get price range
+    const priceStats = await prisma.menuItem.aggregate({
+      _min: { price: true },
+      _max: { price: true },
+      _avg: { price: true }
+    });
+    
+    // Get popular items (based on order count) 
+    const popularItems = await prisma.menuItem.findMany({
       select: {
         id: true,
         name: true,
-        soldCount: true,
-        price: true,
-        category: {
-          select: { name: true }
+        orderItems: {
+          select: { id: true }
         }
-      }
+      },
+      orderBy: { priority: 'desc' },
+      take: 3
     });
 
-    // آیتم‌های جدید (آخرین هفته)
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    
-    const newItems = await prisma.menuItem.count({
-      where: {
-        createdAt: {
-          gte: weekAgo
-        }
-      }
-    });
+    const stats = {
+      totalItems,
+      totalCategories,
+      availableItems,
+      unavailableItems: totalItems - availableItems,
+      specialItems,
+      categoryStats: categoryStats.map(cat => ({
+        category: cat.name,
+        count: cat._count.menuItems
+      })),
+      priceRange: {
+        min: priceStats._min.price || 0,
+        max: priceStats._max.price || 0,
+        average: Math.round(priceStats._avg.price || 0)
+      },
+      popularItems: popularItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        orderCount: item.orderItems.length
+      }))
+    };
 
     return NextResponse.json({
       success: true,
-      data: {
-        // آمار اصلی که در frontend استفاده می‌شود
-        totalItems,
-        totalCategories,
-        availableItems,
-        specialItems,
-        unavailableItems: totalItems - availableItems,
-        regularItems: totalItems - specialItems,
-        
-        // آمار تفصیلی
-        overview: {
-          totalItems,
-          totalCategories,
-          availableItems,
-          specialItems,
-          newItems
-        },
-        pricing: {
-          minPrice: priceRange._min.price || 0,
-          maxPrice: priceRange._max.price || 0,
-          avgPrice: Math.round(priceRange._avg.price || 0)
-        },
-        categories: categoryStats.map(cat => ({
-          id: cat.id,
-          name: cat.name,
-          itemCount: cat._count.menuItems,
-          isActive: cat.isActive
-        })),
-        topSelling: topSelling.map(item => ({
-          id: item.id,
-          name: item.name,
-          soldCount: item.soldCount,
-          price: item.price,
-          category: item.category.name
-        }))
-      }
+      data: stats
     });
 
-  } catch (error) {
-    console.error('خطا در دریافت آمار منو:', error);
-    return NextResponse.json(
-      { success: false, message: 'خطا در دریافت آمار منو' },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error('Menu stats API error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'خطای سرور',
+      data: {
+        totalItems: 0,
+        totalCategories: 0,
+        availableItems: 0,
+        unavailableItems: 0,
+        specialItems: 0,
+        categoryStats: [],
+        priceRange: { min: 0, max: 0, average: 0 },
+        popularItems: []
+      }
+    }, { status: 500 });
   }
 }

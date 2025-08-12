@@ -34,6 +34,12 @@ const publicRoutes = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Skip all middleware in development - let client handle auth
+  if (process.env.NODE_ENV === 'development') {
+    return NextResponse.next();
+  }
+
+  // Production middleware logic
   // Skip middleware for API routes, static files, and other assets
   if (pathname.startsWith('/api/') || 
       pathname.startsWith('/_next/') || 
@@ -47,14 +53,6 @@ export function middleware(request: NextRequest) {
                    request.headers.get('authorization')?.replace('Bearer ', '');
   
   const hasToken = !!authToken;
-  
-  // Debug log (only in development and for specific paths)
-  if (process.env.NODE_ENV === 'development' && (pathname === '/dashboard' || pathname.startsWith('/auth'))) {
-    // Debug log - only in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 Middleware:', pathname, hasToken ? '✅ Auth' : '❌ No Auth');
-    }
-  }
 
   // Check if the current path is protected
   const isProtectedRoute = protectedRoutes.some(route =>

@@ -1,211 +1,294 @@
 // ===============================================
-// 🧑‍🍳 انواع TypeScript برای پنل آشپزخانه
+// 🧑‍🍳 انواع TypeScript جدید برای سیستم آشپزخانه
 // ===============================================
 
-// واردات از فایل‌های types موجود
-export interface MenuItem {
-  id: string
-  name: string
-  nameEn?: string
-  nameAr?: string
+// Kitchen Types - Enhanced for Multi-Department Workflow
+
+// Define enums locally since they may not be exported from Prisma client yet
+export enum Department {
+  KITCHEN = 'KITCHEN',
+  COFFEE_SHOP = 'COFFEE_SHOP',
+  GRILL = 'GRILL',
+  DESSERT = 'DESSERT',
+  HOOKAH = 'HOOKAH',
+  BAKERY = 'BAKERY',
+  SALAD_BAR = 'SALAD_BAR'
+}
+
+export enum KitchenStatus {
+  PENDING = 'PENDING',
+  ACCEPTED = 'ACCEPTED',
+  PREPARING = 'PREPARING',
+  READY = 'READY',
+  SERVED = 'SERVED',
+  CANCELLED = 'CANCELLED'
+}
+
+export enum KitchenItemStatus {
+  PENDING = 'PENDING',
+  ACCEPTED = 'ACCEPTED',
+  PREPARING = 'PREPARING',
+  READY = 'READY',
+  SERVED = 'SERVED',
+  CANCELLED = 'CANCELLED'
+}
+
+export enum OrderPriority {
+  LOW = 'LOW',
+  NORMAL = 'NORMAL',
+  HIGH = 'HIGH',
+  URGENT = 'URGENT'
+}
+
+export enum OrderStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  PREPARING = 'PREPARING',
+  READY = 'READY',
+  DELIVERED = 'DELIVERED',
+  CANCELLED = 'CANCELLED'
+}
+
+export enum OrderType {
+  DINE_IN = 'DINE_IN',
+  TAKEAWAY = 'TAKEAWAY',
+  DELIVERY = 'DELIVERY'
+}
+
+// Department Types
+export { Department, KitchenStatus, KitchenItemStatus, OrderPriority, OrderStatus, OrderType };
+
+// آیتم منو برای آشپزخانه
+export interface KitchenMenuItem {
+  id: string;
+  name: string;
+  nameEn?: string;
+  nameAr?: string;
+  price: number;
+  preparationTime: number;
+  department: Department;
+  image?: string;
+  ingredients: string[];
+  allergens: string[];
   category: {
-    id: string
-    name: string
-  }
-  price: number
-  preparationTime: number
-  image?: string
+    id: string;
+    name: string;
+  };
 }
-
-export interface Customer {
-  id: string
-  name: string
-  phone?: string
-}
-
-// وضعیت‌های آشپزخانه
-export type KitchenStatus = 
-  | 'RECEIVED'     // دریافت شد
-  | 'PREPARING'    // در حال آماده‌سازی
-  | 'READY'        // آماده
-  | 'SERVED'       // سرو شد
-
-// اولویت سفارش
-export type OrderPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'
-
-// دسته‌بندی غذا برای آشپزخانه
-export type FoodCategory = 'APPETIZER' | 'MAIN_COURSE' | 'DESSERT' | 'DRINK' | 'SIDE'
 
 // آیتم سفارش برای آشپزخانه
 export interface KitchenOrderItem {
-  id: string
-  menuItem: MenuItem
-  menuItemId: string
-  quantity: number
-  notes?: string
-  status: KitchenStatus
-  preparationTime: number // به دقیقه
-  category: FoodCategory
-  customizations?: string[]
-  allergens?: string[]
-  startedAt?: Date
-  completedAt?: Date
+  id: number;
+  quantity: number;
+  notes?: string;
+  customizations?: string;
+  preparationTime?: number;
+  menuItem: KitchenMenuItem;
 }
 
-// سفارش آشپزخانه
-export interface KitchenOrder {
-  id: string
-  orderNumber: string
-  customer?: {
-    id: string
-    name: string
-    phone?: string
-  }
-  table?: {
-    id: string
-    number: string
-  }
-  items: KitchenOrderItem[]
-  status: KitchenStatus
-  priority: OrderPriority
-  totalPreparationTime: number // مجموع زمان آماده‌سازی
-  orderType: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY'
-  orderTime: Date
-  expectedReadyTime?: Date
-  actualReadyTime?: Date
-  notes?: string
-  tags?: string[]
-  estimatedDelay?: number // تاخیر تخمینی (دقیقه)
+// فیش آشپزخانه
+export interface KitchenTicket {
+  id: string;
+  ticketNumber: string;
+  orderId: number;
+  department: Department;
+  status: KitchenStatus;
+  priority: OrderPriority;
+  assignedChef?: string;
+  tableNumber?: number;
+  notes?: string;
+  estimatedTime?: number;
+  startedAt?: Date;
+  readyAt?: Date;
+  servedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  order: {
+    orderNumber: string;
+    customerName?: string;
+    type: OrderType;
+    totalAmount: number;
+  };
+  items: KitchenTicketItemWithDetails[];
 }
 
-// فیلترهای آشپزخانه
-export interface KitchenFilters {
-  status?: KitchenStatus[]
-  priority?: OrderPriority[]
-  category?: FoodCategory[]
-  orderType?: ('DINE_IN' | 'TAKEAWAY' | 'DELIVERY')[]
-  timeRange?: 'LAST_1H' | 'LAST_3H' | 'TODAY' | 'CUSTOM'
-  customTimeFrom?: Date
-  customTimeTo?: Date
-  tableNumber?: string
-  customerPhone?: string
+// آیتم فیش آشپزخانه با جزئیات
+export interface KitchenTicketItemWithDetails {
+  id: string;
+  quantity: number;
+  notes?: string;
+  status: KitchenItemStatus;
+  preparationTime?: number;
+  startedAt?: Date;
+  completedAt?: Date;
+  orderItem: {
+    id: number;
+    price: number;
+    customizations?: string;
+    menuItem: KitchenMenuItem;
+  };
 }
 
 // آمار آشپزخانه
 export interface KitchenStats {
-  totalOrders: number
-  pendingOrders: number
-  preparingOrders: number
-  readyOrders: number
-  completedToday: number
-  averagePreparationTime: number // دقیقه
-  delayedOrders: number
-  rushHourOrders: number
-  popularItems: {
-    itemName: string
-    quantity: number
-    averageTime: number
-  }[]
-  performanceMetrics: {
-    onTimeDelivery: number // درصد
-    customerSatisfaction: number // درصد
-    kitchenEfficiency: number // درصد
-  }
+  overview: {
+    pendingTickets: number;
+    preparingTickets: number;
+    readyTickets: number;
+    servedTickets: number;
+    totalTickets: number;
+    averagePreparationTime: number;
+  };
+  byDepartment: {
+    [key in Department]: {
+      pending: number;
+      preparing: number;
+      ready: number;
+      served: number;
+      total: number;
+    };
+  };
+  performance: {
+    ticketsCompletedToday: number;
+    averageCompletionTime: number;
+    delayedTickets: number;
+    onTimeTickets: number;
+  };
+  chefs: Array<{
+    name: string;
+    assignedTickets: number;
+    completedTickets: number;
+    averageTime: number;
+  }>;
+}
+
+// فیلتر آشپزخانه
+export interface KitchenFilter {
+  department?: Department;
+  status?: KitchenStatus;
+  priority?: OrderPriority;
+  assignedChef?: string;
+  tableNumber?: number;
+  dateFrom?: Date;
+  dateTo?: Date;
+  search?: string;
+}
+
+// فرم ایجاد فیش آشپزخانه
+export interface CreateKitchenTicketForm {
+  orderId: number;
+  department: Department;
+  priority?: OrderPriority;
+  assignedChef?: string;
+  notes?: string;
+  estimatedTime?: number;
+  itemIds: number[]; // IDs of OrderItems
+}
+
+// فرم به‌روزرسانی وضعیت فیش
+export interface UpdateKitchenTicketForm {
+  status?: KitchenStatus;
+  assignedChef?: string;
+  notes?: string;
+  estimatedTime?: number;
+}
+
+// فرم به‌روزرسانی آیتم فیش
+export interface UpdateKitchenTicketItemForm {
+  status?: KitchenItemStatus;
+  notes?: string;
+  preparationTime?: number;
+}
+
+// تایمر آشپزخانه
+export interface KitchenTimer {
+  ticketId: string;
+  startTime: Date;
+  estimatedTime: number;
+  elapsedTime: number;
+  isOverdue: boolean;
+}
+
+// اعلان آشپزخانه
+export interface KitchenNotification {
+  id: string;
+  type: 'NEW_ORDER' | 'ORDER_READY' | 'ORDER_DELAYED' | 'PRIORITY_ORDER';
+  title: string;
+  message: string;
+  ticketId?: string;
+  department: Department;
+  isRead: boolean;
+  createdAt: Date;
 }
 
 // تنظیمات آشپزخانه
 export interface KitchenSettings {
-  autoRefreshInterval: number // ثانیه
-  soundNotifications: boolean
-  showCustomerInfo: boolean
-  showTableInfo: boolean
-  displayMode: 'COMPACT' | 'DETAILED' | 'KIOSK'
-  alertDelayThreshold: number // دقیقه
-  maxOrdersPerView: number
-  defaultPreparationTimes: Record<FoodCategory, number>
-  priorityColors: Record<OrderPriority, string>
-  statusColors: Record<KitchenStatus, string>
-}
-
-// اقدامات آشپزخانه
-export interface KitchenActions {
-  updateOrderStatus: (orderId: string, status: KitchenStatus) => Promise<void>
-  updateItemStatus: (orderId: string, itemId: string, status: KitchenStatus) => Promise<void>
-  setPriority: (orderId: string, priority: OrderPriority) => Promise<void>
-  addNote: (orderId: string, note: string) => Promise<void>
-  markDelay: (orderId: string, delayMinutes: number, reason: string) => Promise<void>
-  printOrder: (orderId: string) => Promise<void>
-  bulkUpdateStatus: (orderIds: string[], status: KitchenStatus) => Promise<void>
-}
-
-// Form برای به‌روزرسانی وضعیت
-export interface UpdateStatusForm {
-  status: KitchenStatus
-  notes?: string
-  estimatedDelay?: number
-  delayReason?: string
-}
-
-// Form برای اولویت‌بندی
-export interface SetPriorityForm {
-  priority: OrderPriority
-  reason?: string
-}
-
-// رویداد real-time
-export interface KitchenEvent {
-  type: 'NEW_ORDER' | 'STATUS_UPDATE' | 'PRIORITY_CHANGE' | 'ORDER_CANCELLED'
-  orderId: string
-  data: any
-  timestamp: Date
+  departments: {
+    [key in Department]: {
+      enabled: boolean;
+      defaultPreparationTime: number;
+      maxConcurrentTickets: number;
+      workingHours: {
+        start: string;
+        end: string;
+      };
+      chefs: string[];
+    };
+  };
+  notifications: {
+    newOrder: boolean;
+    orderReady: boolean;
+    orderDelayed: boolean;
+    soundEnabled: boolean;
+  };
+  display: {
+    ticketsPerPage: number;
+    autoRefresh: boolean;
+    refreshInterval: number; // seconds
+    showCustomerInfo: boolean;
+    showEstimatedTime: boolean;
+  };
 }
 
 // صف آشپزخانه
 export interface KitchenQueue {
-  appetizers: KitchenOrder[]
-  mainCourses: KitchenOrder[]
-  desserts: KitchenOrder[]
-  drinks: KitchenOrder[]
-  sides: KitchenOrder[]
+  department: Department;
+  tickets: KitchenTicket[];
+  totalEstimatedTime: number;
+  averageWaitTime: number;
 }
 
 // گزارش عملکرد آشپزخانه
 export interface KitchenPerformanceReport {
-  date: string
-  totalOrders: number
-  completedOrders: number
-  averagePreparationTime: number
-  onTimeDeliveryRate: number
-  peakHours: {
-    hour: number
-    orderCount: number
-  }[]
-  slowestItems: {
-    itemName: string
-    averageTime: number
-    count: number
-  }[]
-  fastestItems: {
-    itemName: string
-    averageTime: number
-    count: number
-  }[]
-  delayReasons: {
-    reason: string
-    count: number
-  }[]
+  date: string;
+  department: Department;
+  totalTickets: number;
+  completedTickets: number;
+  averagePreparationTime: number;
+  delayedTickets: number;
+  customerSatisfaction: number;
+  topMenuItems: Array<{
+    itemName: string;
+    quantity: number;
+    preparationTime: number;
+  }>;
 }
 
-// نوتیفیکیشن آشپزخانه
-export interface KitchenNotification {
-  id: string
-  type: 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS'
-  title: string
-  message: string
-  orderId?: string
-  priority: 'LOW' | 'MEDIUM' | 'HIGH'
-  timestamp: Date
-  read: boolean
-  autoHide?: boolean
-  duration?: number // میلی‌ثانیه
+// Response Types
+export interface KitchenApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+}
+
+export interface PaginatedKitchenResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
 }

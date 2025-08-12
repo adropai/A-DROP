@@ -118,17 +118,17 @@ export async function POST(request: NextRequest) {
     // Set cookie for authentication
     const cookieExpiry = remember ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000; // 30 days or 1 day in milliseconds
     
+    console.log('🍪 Setting auth_token cookie with token:', token.substring(0, 20) + '...');
     response.cookies.set('auth_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false, // فقط در production فعال شود
       sameSite: 'lax',
       maxAge: cookieExpiry / 1000, // maxAge is in seconds
       path: '/'
     });
+    console.log('✅ Cookie set in response');
 
-    return response;
-
-  } catch (error: any) {
+    return response;  } catch (error: any) {
     console.error('Login error:', error);
     return NextResponse.json(
       { message: 'خطای سرور' },

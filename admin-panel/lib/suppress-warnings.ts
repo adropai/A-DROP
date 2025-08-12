@@ -13,7 +13,14 @@ console.warn = (...args) => {
     message.includes('[PERFORMANCE]') ||
     message.includes('[HYDRATION]') ||
     message.includes('[ANTDWARNINGS]') ||
-    message.includes('[GENERAL]')
+    message.includes('[GENERAL]') ||
+    message.includes('只在 form 初始化时生效') ||
+    message.includes('initialValues 只在') ||
+    message.includes('只在') ||
+    message.includes('中文') ||
+    message.includes('異步加載') ||
+    message.includes('初始化') ||
+    /[\u4e00-\u9fff]/.test(message) // Any Chinese characters
   )) {
     return;
   }
@@ -32,7 +39,14 @@ console.error = (...args) => {
     message.includes('[PERFORMANCE]') ||
     message.includes('[HYDRATION]') ||
     message.includes('[ANTDWARNINGS]') ||
-    message.includes('[GENERAL]')
+    message.includes('[GENERAL]') ||
+    message.includes('只在 form 初始化时生效') ||
+    message.includes('initialValues 只在') ||
+    message.includes('只在') ||
+    message.includes('中文') ||
+    message.includes('異步加載') ||
+    message.includes('初始化') ||
+    /[\u4e00-\u9fff]/.test(message) // Any Chinese characters
   )) {
     return;
   }

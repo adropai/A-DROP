@@ -1,481 +1,346 @@
-// ===============================================
-// 🧑‍🍳 Zustand Store برای مدیریت وضعیت آشپزخانه
-// ===============================================
-
-import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
+import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 import { 
-  KitchenOrder, 
-  KitchenOrderItem, 
-  KitchenStatus, 
-  OrderPriority, 
-  FoodCategory,
-  KitchenFilters, 
+  KitchenTicket, 
   KitchenStats, 
-  KitchenSettings,
-  KitchenQueue,
-  KitchenNotification
-} from '@/types/kitchen'
+  KitchenFilter, 
+  Department,
+  KitchenStatus,
+  OrderPriority,
+  UpdateKitchenTicketForm,
+  KitchenApiResponse,
+  PaginatedKitchenResponse 
+} from '@/types/kitchen';
 
-interface KitchenStore {
-  // State
-  orders: KitchenOrder[]
-  activeOrders: KitchenOrder[]
-  completedOrders: KitchenOrder[]
-  queue: KitchenQueue
-  stats: KitchenStats | null
-  settings: KitchenSettings
-  notifications: KitchenNotification[]
-  filters: KitchenFilters
-  loading: boolean
-  error: string | null
-  
-  // Real-time connection
-  isConnected: boolean
-  lastUpdate: Date | null
-
-  // Actions - Data Fetching
-  fetchOrders: (filters?: KitchenFilters) => Promise<void>
-  fetchStats: () => Promise<void>
-  fetchSettings: () => Promise<void>
-  
-  // Actions - Order Management
-  updateOrderStatus: (orderId: string, status: KitchenStatus, notes?: string) => Promise<void>
-  updateItemStatus: (orderId: string, itemId: string, status: KitchenStatus) => Promise<void>
-  setPriority: (orderId: string, priority: OrderPriority, reason?: string) => Promise<void>
-  addOrderNote: (orderId: string, note: string) => Promise<void>
-  markDelay: (orderId: string, delayMinutes: number, reason: string) => Promise<void>
-  bulkUpdateStatus: (orderIds: string[], status: KitchenStatus) => Promise<void>
-  
-  // Actions - Queue Management
-  organizeQueue: () => void
-  getOrdersByCategory: (category: FoodCategory) => KitchenOrder[]
-  getOrdersByStatus: (status: KitchenStatus) => KitchenOrder[]
-  
-  // Actions - Filters & Search
-  setFilters: (filters: Partial<KitchenFilters>) => void
-  clearFilters: () => void
-  searchOrders: (query: string) => KitchenOrder[]
-  
-  // Actions - Settings
-  updateSettings: (settings: Partial<KitchenSettings>) => Promise<void>
-  
-  // Actions - Notifications
-  addNotification: (notification: Omit<KitchenNotification, 'id' | 'timestamp'>) => void
-  markNotificationRead: (id: string) => void
-  clearNotifications: () => void
-  
-  // Actions - Real-time
-  connectWebSocket: () => void
-  disconnectWebSocket: () => void
-  
-  // Utility Actions
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  refreshData: () => Promise<void>
+// Department configuration interface
+interface DepartmentConfig {
+  id: string;
+  name: string;
+  nameEn?: string;
+  icon: string;
+  color: string;
+  enabled: boolean;
+  workingHours: {
+    start: string;
+    end: string;
+  };
+  maxConcurrentTickets: number;
+  defaultPreparationTime: number;
+  description?: string;
+  order: number;
 }
 
-export const useKitchenStore = create<KitchenStore>()(
+interface KitchenState {
+  // Data
+  tickets: KitchenTicket[];
+  selectedTicket: KitchenTicket | null;
+  stats: KitchenStats | null;
+  departments: any[];
+  departmentConfigs: DepartmentConfig[];
+  
+  // UI State
+  loading: boolean;
+  error: string | null;
+  
+  // Filters
+  filters: KitchenFilter;
+  
+  // Pagination
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+
+  // Actions - Tickets
+  fetchTickets: (filters?: KitchenFilter) => Promise<void>;
+  fetchTicketById: (id: string) => Promise<void>;
+  updateTicketStatus: (id: string, data: UpdateKitchenTicketForm) => Promise<boolean>;
+  createTicketsFromOrder: (orderId: number) => Promise<boolean>;
+  
+  // Actions - Stats
+  fetchStats: (department?: Department) => Promise<void>;
+  
+  // Actions - Departments
+  fetchDepartments: () => Promise<void>;
+  fetchDepartmentConfigs: () => Promise<void>;
+  updateDepartmentConfigs: (configs: DepartmentConfig[]) => Promise<boolean>;
+  
+  // Utility Actions
+  setFilters: (filters: Partial<KitchenFilter>) => void;
+  clearFilters: () => void;
+  setSelectedTicket: (ticket: KitchenTicket | null) => void;
+  clearError: () => void;
+}
+
+export const useKitchenStore = create<KitchenState>()(
   devtools(
     (set, get) => ({
       // Initial State
-      orders: [],
-      activeOrders: [],
-      completedOrders: [],
-      queue: {
-        appetizers: [],
-        mainCourses: [],
-        desserts: [],
-        drinks: [],
-        sides: []
-      },
+      tickets: [],
+      selectedTicket: null,
       stats: null,
-      settings: {
-        autoRefreshInterval: 30,
-        soundNotifications: true,
-        showCustomerInfo: true,
-        showTableInfo: true,
-        displayMode: 'DETAILED',
-        alertDelayThreshold: 15,
-        maxOrdersPerView: 20,
-        defaultPreparationTimes: {
-          APPETIZER: 10,
-          MAIN_COURSE: 25,
-          DESSERT: 15,
-          DRINK: 5,
-          SIDE: 8
-        },
-        priorityColors: {
-          LOW: '#52c41a',
-          NORMAL: '#1890ff',
-          HIGH: '#faad14',
-          URGENT: '#ff4d4f'
-        },
-        statusColors: {
-          RECEIVED: '#722ed1',
-          PREPARING: '#fa8c16',
-          READY: '#52c41a',
-          SERVED: '#8c8c8c'
-        }
-      },
-      notifications: [],
-      filters: {},
+      departments: [],
+      departmentConfigs: [],
       loading: false,
       error: null,
-      isConnected: false,
-      lastUpdate: null,
+      filters: {},
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0
+      },
 
-      // Data Fetching Actions
-      fetchOrders: async (filters = {}) => {
-        set({ loading: true, error: null })
-        
+      // Actions - Tickets
+      fetchTickets: async (filters?: KitchenFilter) => {
         try {
-          const params = new URLSearchParams()
+          set({ loading: true, error: null });
           
-          // اضافه کردن فیلترها
-          Object.entries({ ...get().filters, ...filters }).forEach(([key, value]) => {
-            if (value !== undefined && value !== null && value !== '') {
-              if (Array.isArray(value)) {
-                value.forEach(v => params.append(key, v))
-              } else {
-                params.set(key, value.toString())
+          const currentFilters = filters || get().filters;
+          const params = new URLSearchParams();
+          
+          // اضافه کردن فیلترها به query
+          if (currentFilters.department) params.append('department', currentFilters.department);
+          if (currentFilters.status) params.append('status', currentFilters.status);
+          if (currentFilters.priority) params.append('priority', currentFilters.priority);
+          if (currentFilters.assignedChef) params.append('assignedChef', currentFilters.assignedChef);
+          if (currentFilters.tableNumber) params.append('tableNumber', currentFilters.tableNumber.toString());
+          
+          params.append('page', get().pagination.page.toString());
+          params.append('limit', get().pagination.limit.toString());
+
+          const response = await fetch(`/api/kitchen/tickets?${params}`);
+          const result: PaginatedKitchenResponse<KitchenTicket> = await response.json();
+
+          if (result.success) {
+            set({ 
+              tickets: result.data,
+              pagination: {
+                ...get().pagination,
+                total: result.pagination.total,
+                totalPages: result.pagination.pages
               }
-            }
-          })
-          
-          const response = await fetch(`/api/kitchen/orders-simple?${params}`)
-          const result = await response.json()
-          
-          if (result.success) {
-            const orders = result.data.orders || []
-            
-            set({
-              orders,
-              activeOrders: orders.filter((order: KitchenOrder) => 
-                ['RECEIVED', 'PREPARING', 'READY'].includes(order.status)
-              ),
-              completedOrders: orders.filter((order: KitchenOrder) => 
-                order.status === 'SERVED'
-              ),
-              lastUpdate: new Date(),
-              filters: { ...get().filters, ...filters }
-            })
-            
-            // سازماندهی صف
-            get().organizeQueue()
+            });
           } else {
-            set({ error: result.error || 'خطا در دریافت سفارشات' })
+            set({ error: 'خطا در دریافت فیش‌های آشپزخانه' });
           }
         } catch (error) {
-          set({ error: 'خطا در ارتباط با سرور' })
+          set({ error: 'خطا در اتصال به سرور' });
         } finally {
-          set({ loading: false })
+          set({ loading: false });
         }
       },
 
-      fetchStats: async () => {
+      fetchTicketById: async (id: string) => {
         try {
-          const response = await fetch('/api/kitchen/stats')
-          const result = await response.json()
-          
-          if (result.success) {
-            set({ stats: result.data })
-          }
-        } catch (error) {
-          // خطا در دریافت آمار
-        }
-      },
+          set({ loading: true, error: null });
 
-      fetchSettings: async () => {
-        try {
-          const response = await fetch('/api/kitchen/settings')
-          const result = await response.json()
-          
-          if (result.success) {
-            set({ settings: { ...get().settings, ...result.data } })
-          }
-        } catch (error) {
-          // خطا در دریافت تنظیمات
-        }
-      },
+          const response = await fetch(`/api/kitchen/tickets/${id}`);
+          const result: KitchenApiResponse<KitchenTicket> = await response.json();
 
-      // Order Management Actions
-      updateOrderStatus: async (orderId: string, status: KitchenStatus, notes?: string) => {
-        try {
-          const response = await fetch(`/api/kitchen/orders/${orderId}/status`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status, notes })
-          })
-          
-          const result = await response.json()
-          
-          if (result.success) {
-            // به‌روزرسانی وضعیت در store
-            set(state => ({
-              orders: state.orders.map(order =>
-                order.id === orderId 
-                  ? { ...order, status, notes: notes || order.notes }
-                  : order
-              )
-            }))
-            
-            // ارسال نوتیفیکیشن
-            get().addNotification({
-              type: 'SUCCESS',
-              title: 'وضعیت سفارش تغییر یافت',
-              message: `سفارش #${orderId.slice(-6)} به وضعیت ${status} تغییر یافت`,
-              priority: 'MEDIUM',
-              read: false
-            })
-            
-            // رفرش داده‌ها
-            await get().fetchOrders()
+          if (result.success && result.data) {
+            set({ selectedTicket: result.data });
           } else {
-            throw new Error(result.error)
+            set({ error: result.message || 'فیش آشپزخانه یافت نشد' });
           }
         } catch (error) {
-          get().addNotification({
-            type: 'ERROR',
-            title: 'خطا در تغییر وضعیت',
-            message: 'امکان تغییر وضعیت سفارش وجود ندارد',
-            priority: 'HIGH',
-            read: false
-          })
+          set({ error: 'خطا در اتصال به سرور' });
+        } finally {
+          set({ loading: false });
         }
       },
 
-      updateItemStatus: async (orderId: string, itemId: string, status: KitchenStatus) => {
+      updateTicketStatus: async (id: string, data: UpdateKitchenTicketForm) => {
         try {
-          const response = await fetch(`/api/kitchen/orders/${orderId}/items/${itemId}/status`, {
+          set({ loading: true, error: null });
+
+          const response = await fetch(`/api/kitchen/tickets/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status })
-          })
-          
-          const result = await response.json()
-          
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+          });
+
+          const result: KitchenApiResponse<KitchenTicket> = await response.json();
+
           if (result.success) {
-            // به‌روزرسانی آیتم در store
+            // به‌روزرسانی فیش در لیست
             set(state => ({
-              orders: state.orders.map(order =>
-                order.id === orderId 
-                  ? {
-                      ...order,
-                      items: order.items.map(item =>
-                        item.id === itemId ? { ...item, status } : item
-                      )
-                    }
-                  : order
-              )
-            }))
-            
-            await get().fetchOrders()
+              tickets: state.tickets.map(ticket => 
+                ticket.id === id ? { ...ticket, ...data } : ticket
+              ),
+              selectedTicket: state.selectedTicket?.id === id 
+                ? { ...state.selectedTicket, ...data } 
+                : state.selectedTicket
+            }));
+
+            // رفرش آمار
+            await get().fetchStats();
+            return true;
+          } else {
+            set({ error: result.message || 'خطا در به‌روزرسانی فیش' });
+            return false;
           }
         } catch (error) {
-          console.error('خطا در تغییر وضعیت آیتم:', error)
+          set({ error: 'خطا در اتصال به سرور' });
+          return false;
+        } finally {
+          set({ loading: false });
         }
       },
 
-      setPriority: async (orderId: string, priority: OrderPriority, reason?: string) => {
+      createTicketsFromOrder: async (orderId: number) => {
         try {
-          const response = await fetch(`/api/kitchen/orders/${orderId}/priority`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ priority, reason })
-          })
-          
-          if (response.ok) {
-            set(state => ({
-              orders: state.orders.map(order =>
-                order.id === orderId ? { ...order, priority } : order
-              )
-            }))
-            
-            await get().fetchOrders()
-          }
-        } catch (error) {
-          console.error('خطا در تنظیم اولویت:', error)
-        }
-      },
+          set({ loading: true, error: null });
 
-      addOrderNote: async (orderId: string, note: string) => {
-        try {
-          const response = await fetch(`/api/kitchen/orders/${orderId}/notes`, {
+          const response = await fetch('/api/kitchen/tickets', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ note })
-          })
-          
-          if (response.ok) {
-            await get().fetchOrders()
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ orderId })
+          });
+
+          const result: KitchenApiResponse<KitchenTicket[]> = await response.json();
+
+          if (result.success) {
+            // رفرش لیست فیش‌ها
+            await get().fetchTickets();
+            await get().fetchStats();
+            return true;
+          } else {
+            set({ error: result.message || 'خطا در ایجاد فیش‌های آشپزخانه' });
+            return false;
           }
         } catch (error) {
-          console.error('خطا در افزودن یادداشت:', error)
+          set({ error: 'خطا در اتصال به سرور' });
+          return false;
+        } finally {
+          set({ loading: false });
         }
       },
 
-      markDelay: async (orderId: string, delayMinutes: number, reason: string) => {
+      // Actions - Stats
+      fetchStats: async (department?: Department) => {
         try {
-          const response = await fetch(`/api/kitchen/orders/${orderId}/delay`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ delayMinutes, reason })
-          })
-          
-          if (response.ok) {
-            await get().fetchOrders()
+          const params = department ? `?department=${department}` : '';
+          const response = await fetch(`/api/kitchen/stats${params}`);
+          const result: KitchenApiResponse<KitchenStats> = await response.json();
+
+          if (result.success && result.data) {
+            set({ stats: result.data });
+          } else {
+            set({ error: result.message || 'خطا در دریافت آمار آشپزخانه' });
           }
         } catch (error) {
-          console.error('خطا در ثبت تاخیر:', error)
+          set({ error: 'خطا در اتصال به سرور' });
         }
       },
 
-      bulkUpdateStatus: async (orderIds: string[], status: KitchenStatus) => {
+      // Actions - Departments
+      fetchDepartments: async () => {
         try {
-          const response = await fetch('/api/kitchen/orders/bulk-status', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderIds, status })
-          })
-          
-          if (response.ok) {
-            await get().fetchOrders()
+          const response = await fetch('/api/kitchen/departments');
+          const result: KitchenApiResponse<any[]> = await response.json();
+
+          if (result.success && result.data) {
+            set({ departments: result.data });
+          } else {
+            set({ error: result.message || 'خطا در دریافت بخش‌های آشپزخانه' });
           }
         } catch (error) {
-          console.error('خطا در به‌روزرسانی گروهی:', error)
+          set({ error: 'خطا در اتصال به سرور' });
         }
       },
 
-      // Queue Management
-      organizeQueue: () => {
-        const orders = get().activeOrders
-        
-        const queue: KitchenQueue = {
-          appetizers: orders.filter(order => 
-            order.items.some(item => item.category === 'APPETIZER')
-          ),
-          mainCourses: orders.filter(order => 
-            order.items.some(item => item.category === 'MAIN_COURSE')
-          ),
-          desserts: orders.filter(order => 
-            order.items.some(item => item.category === 'DESSERT')
-          ),
-          drinks: orders.filter(order => 
-            order.items.some(item => item.category === 'DRINK')
-          ),
-          sides: orders.filter(order => 
-            order.items.some(item => item.category === 'SIDE')
-          )
-        }
-        
-        set({ queue })
-      },
-
-      getOrdersByCategory: (category: FoodCategory) => {
-        return get().orders.filter(order =>
-          order.items.some(item => item.category === category)
-        )
-      },
-
-      getOrdersByStatus: (status: KitchenStatus) => {
-        return get().orders.filter(order => order.status === status)
-      },
-
-      // Filters & Search
-      setFilters: (filters: Partial<KitchenFilters>) => {
+      // Utility Actions
+      setFilters: (filters: Partial<KitchenFilter>) => {
         set(state => ({
-          filters: { ...state.filters, ...filters }
-        }))
-        get().fetchOrders()
+          filters: { ...state.filters, ...filters },
+          pagination: { ...state.pagination, page: 1 } // ریست صفحه‌بندی
+        }));
       },
 
       clearFilters: () => {
-        set({ filters: {} })
-        get().fetchOrders()
+        set({ 
+          filters: {},
+          pagination: { ...get().pagination, page: 1 }
+        });
       },
 
-      searchOrders: (query: string) => {
-        const orders = get().orders
-        return orders.filter(order =>
-          order.orderNumber.toLowerCase().includes(query.toLowerCase()) ||
-          order.customer?.name.toLowerCase().includes(query.toLowerCase()) ||
-          order.customer?.phone?.includes(query) ||
-          order.table?.number.includes(query)
-        )
+      setSelectedTicket: (ticket: KitchenTicket | null) => {
+        set({ selectedTicket: ticket });
       },
 
-      // Settings
-      updateSettings: async (settings: Partial<KitchenSettings>) => {
+      fetchDepartmentConfigs: async () => {
         try {
-          const response = await fetch('/api/kitchen/settings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(settings)
-          })
-          
-          if (response.ok) {
-            set(state => ({
-              settings: { ...state.settings, ...settings }
-            }))
+          set({ loading: true, error: null });
+
+          const response = await fetch('/api/kitchen/department-config');
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || 'Failed to fetch department configs');
           }
+
+          set({ 
+            departmentConfigs: result.data,
+            loading: false 
+          });
+          
         } catch (error) {
-          console.error('خطا در به‌روزرسانی تنظیمات:', error)
+          console.error('❌ Fetch department configs error:', error);
+          set({ 
+            error: error instanceof Error ? error.message : 'Failed to fetch department configs',
+            loading: false 
+          });
         }
       },
 
-      // Notifications
-      addNotification: (notification) => {
-        const newNotification: KitchenNotification = {
-          ...notification,
-          id: Date.now().toString(),
-          timestamp: new Date()
+      updateDepartmentConfigs: async (configs: DepartmentConfig[]) => {
+        try {
+          set({ loading: true, error: null });
+
+          const response = await fetch('/api/kitchen/department-config', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(configs)
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || 'Failed to update department configs');
+          }
+
+          set({ 
+            departmentConfigs: configs,
+            loading: false 
+          });
+
+          return true;
+          
+        } catch (error) {
+          console.error('❌ Update department configs error:', error);
+          set({ 
+            error: error instanceof Error ? error.message : 'Failed to update department configs',
+            loading: false 
+          });
+          return false;
         }
-        
-        set(state => ({
-          notifications: [newNotification, ...state.notifications].slice(0, 50)
-        }))
-        
-        // پخش صدای اعلان
-        if (get().settings.soundNotifications) {
-          // اینجا می‌توان صدای اعلان پخش کرد
-        }
       },
 
-      markNotificationRead: (id: string) => {
-        set(state => ({
-          notifications: state.notifications.map(notif =>
-            notif.id === id ? { ...notif, read: true } : notif
-          )
-        }))
-      },
-
-      clearNotifications: () => {
-        set({ notifications: [] })
-      },
-
-      // Real-time WebSocket (پیاده‌سازی در آینده)
-      connectWebSocket: () => {
-        // اتصال WebSocket برای دریافت سفارشات real-time
-        set({ isConnected: true })
-      },
-
-      disconnectWebSocket: () => {
-        set({ isConnected: false })
-      },
-
-      // Utility
-      setLoading: (loading: boolean) => set({ loading }),
-      setError: (error: string | null) => set({ error }),
-
-      refreshData: async () => {
-        await Promise.all([
-          get().fetchOrders(),
-          get().fetchStats(),
-          get().fetchSettings()
-        ])
+      clearError: () => {
+        set({ error: null });
       }
     }),
-    { name: 'kitchen-store' }
+    {
+      name: 'kitchen-store'
+    }
   )
-)
+);

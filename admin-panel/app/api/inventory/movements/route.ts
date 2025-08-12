@@ -1,23 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-// import { InventoryStatus } from '@prisma/client'; // Commented out for now
+import { MovementType } from '@prisma/client';
 
-// GET - دریافت تمام حرکات انبار
+// GET - دریافت تمام حرکت‌های انبار
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    console.log('📋 Inventory Movements GET API called');
     
+    const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const itemId = searchParams.get('itemId') || '';
     const type = searchParams.get('type') || '';
-    const user = searchParams.get('user') || '';
-    const dateFrom = searchParams.get('dateFrom');
-    const dateTo = searchParams.get('dateTo');
 
     const skip = (page - 1) * limit;
-
-    // ساخت شرایط جستجو
     const where: any = {};
 
     if (itemId && itemId !== 'all') {
@@ -28,27 +24,9 @@ export async function GET(request: NextRequest) {
       where.type = type;
     }
 
-    if (user && user !== 'all') {
-      where.user = { contains: user, mode: 'insensitive' };
-    }
-
-    if (dateFrom || dateTo) {
-      where.createdAt = {};
-      if (dateFrom) {
-        where.createdAt.gte = new Date(dateFrom);
-      }
-      if (dateTo) {
-        const endDate = new Date(dateTo);
-        endDate.setHours(23, 59, 59, 999);
-        where.createdAt.lte = endDate;
-      }
-    }
-
     const [movements, total] = await Promise.all([
       prisma.stockMovement.findMany({
         where,
-        skip,
-        take: limit,
         include: {
           item: {
             select: {
@@ -59,12 +37,14 @@ export async function GET(request: NextRequest) {
             }
           }
         },
+        skip,
+        take: limit,
         orderBy: { createdAt: 'desc' }
       }),
       prisma.stockMovement.count({ where })
     ]);
 
-    const totalPages = Math.ceil(total / limit);
+    console.log(`📋 Found ${movements.length} inventory movements`);
 
     return NextResponse.json({
       success: true,
@@ -73,181 +53,212 @@ export async function GET(request: NextRequest) {
         page,
         limit,
         total,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1
+        pages: Math.ceil(total / limit)
       }
     });
 
   } catch (error) {
-    console.error('Error fetching stock movements:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'خطا در دریافت حرکات انبار',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
+    console.error('❌ Inventory Movements GET error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'خطا در دریافت حرکت‌های انبار',
+      data: []
+    }, { status: 500 });
   }
 }
 
-// POST - ایجاد حرکت جدید انبار
+// POST - اضافه کردن حرکت جدید (ورود/خروج کالا)
 export async function POST(request: NextRequest) {
   try {
+    console.log('📋 Inventory Movements POST API called');
     const body = await request.json();
-    
-    const {
-      itemId,
-      type,
-      quantity,
-      unitPrice,
-      reason,
-      reference,
-      batchNumber,
-      expiryDate,
-      supplier,
-      notes,
-      user = 'System'
-    } = body;
+    console.log('📋 Request body:', body);
 
-    if (!itemId || !type || !quantity) {
-      return NextResponse.json(
-        { success: false, error: 'فیلدهای الزامی را پر کنید' },
-        { status: 400 }
-      );
-    }
+    // پردازش پارامترهای مختلف از frontend
+    const itemId = body.itemId;
+    const type = body.type;
+    const quantity = body.quantity || body.amount || 0; // امکان دریافت quantity یا amount
+    const unitPrice = body.unitPrice || 0;
+    const reference = body.reference || body.description || '';
+    const notes = body.notes || body.description || '';
+    const userId = body.userId || 'system';
 
-    // دریافت آیتم فعلی
-    const item = await prisma.inventoryItem.findUnique({
-      where: { id: itemId }
+    // دریافت موجودی فعلی آیتم
+    const currentItem = await prisma.inventoryItem.findUnique({
+      where: { id: itemId },
+      select: { currentStock: true, name: true }
     });
 
-    if (!item) {
-      return NextResponse.json(
-        { success: false, error: 'آیتم انبار یافت نشد' },
-        { status: 404 }
-      );
+    if (!currentItem) {
+      return NextResponse.json({
+        success: false,
+        message: 'آیتم یافت نشد'
+      }, { status: 404 });
     }
 
-    const previousStock = item.currentStock;
+    const previousStock = currentItem.currentStock;
     let newStock = previousStock;
 
-    // محاسبه موجودی جدید بر اساس نوع حرکت
-    switch (type) {
-      case 'IN':
-        newStock = previousStock + quantity;
-        break;
-      case 'OUT':
-        newStock = previousStock - quantity;
-        break;
-      case 'ADJUSTMENT':
-        newStock = quantity; // در تعدیل، quantity همان موجودی جدید است
-        break;
-      case 'TRANSFER':
-        newStock = previousStock - quantity;
-        break;
-      case 'RETURN':
-        newStock = previousStock + quantity;
-        break;
-      case 'WASTE':
-      case 'EXPIRED':
-        newStock = previousStock - quantity;
-        break;
-      default:
-        return NextResponse.json(
-          { success: false, error: 'نوع حرکت نامعتبر است' },
-          { status: 400 }
-        );
+    // محاسبه موجودی جدید
+    if (type === 'IN') {
+      newStock = previousStock + quantity;
+    } else if (type === 'OUT') {
+      newStock = previousStock - quantity;
+      
+      // بررسی موجودی منفی
+      if (newStock < 0) {
+        return NextResponse.json({
+          success: false,
+          message: `موجودی کافی نیست. موجودی فعلی: ${previousStock}`
+        }, { status: 400 });
+      }
+    } else if (type === 'WASTE') {
+      // تلفات - کاهش موجودی
+      newStock = previousStock - quantity;
+      
+      // بررسی موجودی منفی
+      if (newStock < 0) {
+        return NextResponse.json({
+          success: false,
+          message: `موجودی کافی نیست. موجودی فعلی: ${previousStock}`
+        }, { status: 400 });
+      }
+    } else if (type === 'ADJUSTMENT') {
+      // تعدیل موجودی - تنظیم مستقیم موجودی
+      newStock = quantity; // quantity در این حالت موجودی جدید است
     }
 
-    // جلوگیری از موجودی منفی
-    if (newStock < 0) {
-      return NextResponse.json(
-        { success: false, error: 'موجودی کافی وجود ندارد' },
-        { status: 400 }
-      );
-    }
-
-    // تعیین وضعیت جدید
-    let newStatus: string = 'IN_STOCK';
-    if (newStock <= 0) {
-      newStatus = 'OUT_OF_STOCK';
-    } else if (newStock <= item.minStock) {
-      newStatus = 'LOW_STOCK';
-    }
-
-    // بررسی انقضا
-    const expiry = expiryDate ? new Date(expiryDate) : item.expiryDate;
-    if (expiry && expiry <= new Date()) {
-      newStatus = 'EXPIRED';
-    }
-
-    // محاسبه ارزش کل
-    const calculatedUnitPrice = unitPrice || item.price;
-    const totalValue = Math.abs(quantity) * calculatedUnitPrice;
-
-    // ایجاد حرکت و به‌روزرسانی آیتم در تراکنش
-    const result = await prisma.$transaction(async (prisma) => {
-      // ایجاد حرکت
-      const movement = await prisma.stockMovement.create({
-        data: {
-          itemId,
-          type,
-          quantity: Math.abs(quantity),
-          previousStock,
-          newStock,
-          unitPrice: calculatedUnitPrice,
-          totalValue,
-          reason,
-          reference,
-          batchNumber,
-          expiryDate: expiryDate ? new Date(expiryDate) : null,
-          supplier,
-          user,
-          notes
-        },
-        include: {
-          item: {
-            select: {
-              id: true,
-              name: true,
-              sku: true,
-              unit: true
-            }
+    // ایجاد حرکت جدید
+    const newMovement = await prisma.stockMovement.create({
+      data: {
+        itemId: itemId,
+        type: type,
+        quantity: quantity,
+        unitPrice: unitPrice,
+        totalPrice: quantity * unitPrice,
+        reference: reference,
+        notes: notes,
+        userId: userId,
+        previousStock: previousStock,
+        newStock: newStock
+      },
+      include: {
+        item: {
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            unit: true
           }
         }
-      });
-
-      // به‌روزرسانی موجودی آیتم
-      await prisma.inventoryItem.update({
-        where: { id: itemId },
-        data: {
-          currentStock: newStock,
-          status: newStatus,
-          ...(type === 'IN' && { lastRestockDate: new Date() }),
-          ...(unitPrice && { price: calculatedUnitPrice })
-        }
-      });
-
-      return movement;
+      }
     });
+
+    // به‌روزرسانی موجودی آیتم
+    await prisma.inventoryItem.update({
+      where: { id: itemId },
+      data: {
+        currentStock: newStock,
+        status: newStock === 0 ? 'OUT_OF_STOCK' : 
+               newStock <= (await prisma.inventoryItem.findUnique({ 
+                 where: { id: itemId }, 
+                 select: { minStock: true } 
+               }))?.minStock ? 'LOW_STOCK' : 'IN_STOCK'
+      }
+    });
+
+    console.log('📋 Created inventory movement:', newMovement.id);
+    console.log(`📋 Stock updated: ${previousStock} → ${newStock}`);
 
     return NextResponse.json({
       success: true,
-      data: result,
-      message: 'حرکت انبار با موفقیت ثبت شد'
+      message: 'حرکت انبار با موفقیت ثبت شد',
+      data: newMovement
     });
 
   } catch (error) {
-    console.error('Error creating stock movement:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'خطا در ثبت حرکت انبار',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
+    console.error('❌ Inventory Movements POST error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'خطا در ثبت حرکت انبار'
+    }, { status: 500 });
+  }
+}
+
+// DELETE - حذف حرکت انبار
+export async function DELETE(request: NextRequest) {
+  try {
+    console.log('📋 Inventory Movements DELETE API called');
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({
+        success: false,
+        message: 'شناسه حرکت الزامی است'
+      }, { status: 400 });
+    }
+
+    // دریافت اطلاعات حرکت قبل از حذف
+    const movement = await prisma.stockMovement.findUnique({
+      where: { id }
+    });
+
+    if (!movement) {
+      return NextResponse.json({
+        success: false,
+        message: 'حرکت یافت نشد'
+      }, { status: 404 });
+    }
+
+    // برگرداندن موجودی (عکس عمل حرکت)
+    if (movement.type === 'IN') {
+      // اگر ورودی بود، باید کم کنیم
+      await prisma.inventoryItem.update({
+        where: { id: movement.itemId },
+        data: {
+          currentStock: {
+            decrement: movement.quantity
+          }
+        }
+      });
+    } else if (movement.type === 'OUT' || movement.type === 'WASTE') {
+      // اگر خروجی یا تلفات بود، باید اضافه کنیم
+      await prisma.inventoryItem.update({
+        where: { id: movement.itemId },
+        data: {
+          currentStock: {
+            increment: movement.quantity
+          }
+        }
+      });
+    } else if (movement.type === 'ADJUSTMENT') {
+      // برای تعدیل، باید موجودی قبلی را برگردانیم
+      await prisma.inventoryItem.update({
+        where: { id: movement.itemId },
+        data: {
+          currentStock: movement.previousStock
+        }
+      });
+    }
+
+    // حذف حرکت
+    await prisma.stockMovement.delete({
+      where: { id }
+    });
+
+    console.log('📋 Deleted inventory movement:', id);
+
+    return NextResponse.json({
+      success: true,
+      message: 'حرکت انبار با موفقیت حذف شد'
+    });
+
+  } catch (error) {
+    console.error('❌ Inventory Movements DELETE error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'خطا در حذف حرکت انبار'
+    }, { status: 500 });
   }
 }

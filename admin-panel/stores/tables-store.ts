@@ -25,11 +25,19 @@ export const useTablesStore = create<TablesState>((set, get) => ({
       const response = await fetch('/api/tables');
       const result = await response.json();
       
-      if (result.success && result.data) {
+      console.log('📋 Tables API response:', result);
+      
+      if (result.success && result.data && result.data.tables) {
+        set({ tables: result.data.tables });
+      } else if (result.success && Array.isArray(result.data)) {
         set({ tables: result.data });
+      } else {
+        console.error('Invalid tables response:', result);
+        set({ tables: [] }); // Ensure tables is always an array
       }
     } catch (error) {
       console.error('Error fetching tables:', error);
+      set({ tables: [] }); // Ensure tables is always an array on error
     } finally {
       set({ loading: false });
     }
@@ -128,11 +136,15 @@ export const useTablesStore = create<TablesState>((set, get) => ({
   // آمار میزها
   getTableStats: () => {
     const { tables } = get();
-    const totalTables = tables.length;
-    const availableTables = tables.filter(t => t.status === 'available').length;
-    const occupiedTables = tables.filter(t => t.status === 'occupied').length;
-    const reservedTables = tables.filter(t => t.status === 'reserved').length;
-    const maintenanceTables = tables.filter(t => t.status === 'maintenance').length;
+    
+    // Ensure tables is an array
+    const tablesArray = Array.isArray(tables) ? tables : [];
+    
+    const totalTables = tablesArray.length;
+    const availableTables = tablesArray.filter(t => t.status === 'available').length;
+    const occupiedTables = tablesArray.filter(t => t.status === 'occupied').length;
+    const reservedTables = tablesArray.filter(t => t.status === 'reserved').length;
+    const maintenanceTables = tablesArray.filter(t => t.status === 'maintenance').length;
     // نرخ اشغال فقط بر اساس تعداد میزهای اشغال شده
     const occupancyRate = totalTables > 0 ? (occupiedTables / totalTables) * 100 : 0;
 
@@ -146,15 +158,17 @@ export const useTablesStore = create<TablesState>((set, get) => ({
     };
   },
 
-  // میزها بر اساس وضعیت
+    // دریافت میزها بر اساس وضعیت
   getTablesByStatus: (status) => {
     const { tables } = get();
-    return tables.filter(table => table.status === status);
+    const tablesArray = Array.isArray(tables) ? tables : [];
+    return tablesArray.filter(table => table.status === status);
   },
 
-  // میزها بر اساس نوع
+  // دریافت میزها بر اساس نوع
   getTablesByType: (type) => {
     const { tables } = get();
-    return tables.filter(table => table.type === type);
+    const tablesArray = Array.isArray(tables) ? tables : [];
+    return tablesArray.filter(table => table.type === type);
   },
 }));
