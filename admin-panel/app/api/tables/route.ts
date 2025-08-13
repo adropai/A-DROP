@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TableType, TableStatus } from '@prisma/client';
+import { withAuth, PERMISSIONS, type AuthenticatedRequest } from '@/lib/auth-middleware';
 
 // Helper functions for enum conversion
 const mapTypeToDatabase = (type: string): TableType => {
@@ -41,9 +42,10 @@ const mapStatusToFrontend = (status: string): string => {
   return mapping[status] || status.toLowerCase();
 };
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(PERMISSIONS.TABLES_VIEW)(async function(request: AuthenticatedRequest) {
   try {
     console.log('📋 Tables GET API called');
+    console.log('🔐 User permissions:', request.user?.permissions);
     
     const tables = await prisma.table.findMany({
       orderBy: {
@@ -84,11 +86,12 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(PERMISSIONS.TABLES_MANAGE)(async function(request: AuthenticatedRequest) {
   try {
     console.log('📋 Tables POST API called');
+    console.log('🔐 Created by user:', request.user?.email);
     
     const body = await request.json();
     console.log('📋 POST data:', body);
@@ -131,11 +134,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function PUT(request: NextRequest) {
+export const PUT = withAuth(PERMISSIONS.TABLES_MANAGE)(async function(request: AuthenticatedRequest) {
   try {
     console.log('📋 Tables PUT API called');
+    console.log('🔐 Updated by user:', request.user?.email);
     
     const body = await request.json();
     const { id, ...updateData } = body;
@@ -188,11 +192,12 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAuth(PERMISSIONS.TABLES_MANAGE)(async function(request: AuthenticatedRequest) {
   try {
     console.log('📋 Tables DELETE API called');
+    console.log('🔐 Deleted by user:', request.user?.email);
     
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -224,4 +229,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

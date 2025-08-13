@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    // دریافت اطلاعات کاربر از token (اختیاری برای لاگ)
+    // دریافت اطلاعات کاربر از token
     const authHeader = request.headers.get('Authorization')
-    const token = authHeader?.replace('Bearer ', '') || request.cookies.get('auth-token')?.value
+    const token = authHeader?.replace('Bearer ', '') || request.cookies.get('auth_token')?.value
+
+    // Log logout activity (اختیاری)
+    if (token) {
+      console.log('🚪 User logout initiated with token:', token.substring(0, 20) + '...');
+    }
 
     // ایجاد response برای logout
     const response = NextResponse.json({
@@ -12,9 +17,8 @@ export async function POST(request: NextRequest) {
       message: 'خروج با موفقیت انجام شد'
     })
 
-    // حذف cookie های احراز هویت
-    response.cookies.delete('auth-token')
-    response.cookies.set('auth-token', '', {
+    // حذف cookie احراز هویت
+    response.cookies.set('auth_token', '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -22,21 +26,14 @@ export async function POST(request: NextRequest) {
       path: '/'
     })
 
-    // در صورت نیاز، می‌توان token را در لیست سیاه قرار داد
-    // blacklistToken(token)
-
+    console.log('✅ Logout successful - auth_token cookie cleared');
     return response
 
-  } catch (error) {
-    console.error('Logout API Error:', error)
+  } catch (error: any) {
+    console.error('❌ Logout error:', error);
     return NextResponse.json(
-      { success: false, error: 'خطا در خروج از سیستم' },
+      { success: false, message: 'خطا در خروج از سیستم' },
       { status: 500 }
     )
   }
-}
-
-// GET method برای logout (اختیاری)
-export async function GET(request: NextRequest) {
-  return POST(request)
 }

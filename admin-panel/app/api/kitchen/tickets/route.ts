@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Department, KitchenStatus, OrderPriority } from '@/types/kitchen';
+import { withAuth, PERMISSIONS, type AuthenticatedRequest } from '@/lib/auth-middleware';
 
 // GET - دریافت فیش‌های آشپزخانه
-export async function GET(request: NextRequest) {
+export const GET = withAuth(PERMISSIONS.KITCHEN_VIEW)(async function(request: AuthenticatedRequest) {
   try {
     console.log('🧑‍🍳 Kitchen Tickets GET API called');
+    console.log('🔐 User permissions:', request.user?.permissions);
     
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department') as Department;
@@ -95,12 +97,14 @@ export async function GET(request: NextRequest) {
       data: []
     }, { status: 500 });
   }
-}
+});
 
 // POST - ایجاد فیش آشپزخانه جدید (خودکار از سفارش)
-export async function POST(request: NextRequest) {
+export const POST = withAuth(PERMISSIONS.KITCHEN_MANAGE)(async function(request: AuthenticatedRequest) {
   try {
     console.log('🧑‍🍳 Kitchen Tickets POST API called');
+    console.log('🔐 Created by user:', request.user?.email);
+    
     const body = await request.json();
     console.log('🧑‍🍳 Request body:', body);
 
@@ -191,4 +195,4 @@ export async function POST(request: NextRequest) {
       message: 'خطا در ایجاد فیش آشپزخانه'
     }, { status: 500 });
   }
-}
+});

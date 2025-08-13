@@ -48,6 +48,36 @@ create-fixed-orders.js
 create-test-data.js
 debug-*.js
 full-db-check.js
+
+# Prevent duplicate files from being created
+*_backup.*
+*_old.*
+*_new.*
+*_simple.*
+*_test.*
+*_copy.*
+*_temp.*
+*_duplicate.*
+page_backup.*
+page_old.*
+page_new.*
+page_simple.*
+route_backup.*
+route_old.*
+route_new.*
+route_simple.*
+route_persian.*
+route_test.*
+
+# Empty directories and files that shouldn't be committed
+**/.empty
+**/empty.txt
+**/*_empty.*
+
+# Test data and placeholder files
+**/test-data/
+test-data.*
+placeholder-*
 generate-hash.js
 silent-orders.js
 simple-*.js
@@ -78,3 +108,10 @@ types/dashboard.ts
 # VS Code settings (optional)
 .vscode/settings.json
 .vscode/tasks.json
+
+# Specific problematic files protection
+components/test_old.tsx
+**/test_old.*
+**/*test_old*
+components/*_old.*
+components/*_test.*

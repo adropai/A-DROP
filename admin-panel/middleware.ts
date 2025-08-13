@@ -1,8 +1,40 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { UserRole } from '@prisma/client';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key';
+
+// Route permissions mapping
+const ROUTE_PERMISSIONS = {
+  '/dashboard': 'dashboard.view',
+  '/menu': 'menu.view',
+  '/orders': 'orders.view',
+  '/customers': 'customers.view',
+  '/staff': 'staff.view',
+  '/inventory': 'inventory.view',
+  '/analytics': 'analytics.view',
+  '/settings': 'settings.view',
+  '/kitchen': 'kitchen.view',
+  '/delivery': 'delivery.view',
+  '/cashier': 'cashier.view',
+  '/tables': 'tables.view',
+  '/marketing': 'marketing.view',
+  '/reservation': 'reservations.view',
+  '/ai-training': 'analytics.advanced',
+  '/roles': 'roles.view',
+  '/security': 'security.view',
+} as const;
+
+// Role-based route access
+const ROLE_ROUTES = {
+  '/roles': [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  '/security': [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  '/analytics': [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER],
+  '/staff': [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER],
+  '/inventory': [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER],
+  '/settings': [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+} as const;
 
 // Protected routes that require authentication
 const protectedRoutes = [
@@ -21,6 +53,8 @@ const protectedRoutes = [
   '/marketing',
   '/reservation',
   '/ai-training',
+  '/roles',
+  '/security',
 ];
 
 // Public routes that don't require authentication
@@ -30,6 +64,14 @@ const publicRoutes = [
   '/auth/forgot-password',
   '/',
 ];
+
+interface JWTPayload {
+  userId: string;
+  email: string;
+  role: UserRole;
+  iat?: number;
+  exp?: number;
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -72,11 +114,27 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Verify token for protected routes
+  // Verify token and check role-based access for protected routes
   if (isProtectedRoute && authToken) {
     try {
-      jwt.verify(authToken, JWT_SECRET);
-      // Token is valid, continue
+      const decoded = jwt.verify(authToken, JWT_SECRET) as JWTPayload;
+      
+      // Check role-based route access
+      const currentRoute = Object.keys(ROLE_ROUTES).find(route => 
+        pathname.startsWith(route)
+      ) as keyof typeof ROLE_ROUTES;
+      
+      if (currentRoute && ROLE_ROUTES[currentRoute]) {
+        const allowedRoles = ROLE_ROUTES[currentRoute];
+        if (!allowedRoles.includes(decoded.role)) {
+          // User doesn't have required role, redirect to dashboard with error
+          const dashboardUrl = new URL('/dashboard', request.url);
+          dashboardUrl.searchParams.set('error', 'insufficient_permissions');
+          return NextResponse.redirect(dashboardUrl);
+        }
+      }
+      
+      // Token is valid and user has required role, continue
     } catch (error) {
       // Token is invalid, redirect to login
       const loginUrl = new URL('/auth/login', request.url);

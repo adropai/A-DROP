@@ -9,6 +9,10 @@ const nextConfig = {
         '.svg': ['@svgr/webpack'],
       },
     },
+    // Disable automatic file generation
+    optimizePackageImports: false,
+    // Disable filesystem optimizations that might create files
+    optimizeServerReact: false,
   },
   // Fast development optimizations  
   // compiler: {

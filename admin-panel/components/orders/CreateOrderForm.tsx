@@ -1,189 +1,215 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
-  Modal, 
-  Form, 
-  Input, 
-  Select, 
-  Button, 
-  Table, 
-  InputNumber, 
-  Space,
-  message,
-  Divider,
-  Card,
-  Row,
-  Col,
-  Typography
+  Modal, Form, Input, Select, Button, InputNumber, Space, Card, Row, Col, 
+  message, Divider, Typography, Table, Tag, Switch, DatePicker, TimePicker
 } from 'antd'
-import { PlusOutlined, DeleteOutlined, ShoppingCartOutlined } from '@ant-design/icons'
+import { 
+  PlusOutlined, MinusCircleOutlined, UserOutlined, ShoppingCartOutlined,
+  DollarOutlined, PercentageOutlined, DeleteOutlined
+} from '@ant-design/icons'
+import dayjs from 'dayjs'
 
 const { Option } = Select
-const { Title, Text } = Typography
+const { TextArea } = Input
+const { Text } = Typography
+
+interface CreateOrderFormProps {
+  onCancel: () => void
+  onSuccess: () => void
+}
 
 interface MenuItem {
   id: string
   name: string
   price: number
   category: string
+  available: boolean
 }
 
-interface OrderItem {
+interface Customer {
   id: string
   name: string
-  price: number
-  quantity: number
+  phone: string
+  email?: string
+  address?: string
 }
 
-interface CreateOrderFormProps {
-  visible: boolean
-  onCancel: () => void
-  onSuccess: () => void
-}
-
-export default function CreateOrderForm({ visible, onCancel, onSuccess }: CreateOrderFormProps) {
+const CreateOrderForm: React.FC<CreateOrderFormProps> = ({ onCancel, onSuccess }) => {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
-  const [selectedItems, setSelectedItems] = useState<OrderItem[]>([])
-  const [selectedMenuItem, setSelectedMenuItem] = useState<string>('')
-  const [quantity, setQuantity] = useState<number>(1)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [selectedItems, setSelectedItems] = useState<any[]>([])
+  const [subtotal, setSubtotal] = useState(0)
+  const [discount, setDiscount] = useState(0)
+  const [discountType, setDiscountType] = useState<'amount' | 'percentage'>('percentage')
+  const [tax, setTax] = useState(0)
+  const [deliveryFee, setDeliveryFee] = useState(0)
+  const [total, setTotal] = useState(0)
+  const [orderType, setOrderType] = useState<'dine-in' | 'takeaway' | 'delivery'>('dine-in')
+  const [isNewCustomer, setIsNewCustomer] = useState(false)
 
   useEffect(() => {
-    if (visible) {
-      fetchMenuItems()
-      form.resetFields()
-      setSelectedItems([])
-    }
-  }, [visible, form])
+    fetchMenuItems()
+    fetchCustomers()
+  }, [])
+
+  useEffect(() => {
+    calculateTotal()
+  }, [selectedItems, discount, discountType, tax, deliveryFee])
 
   const fetchMenuItems = async () => {
     try {
-      const response = await fetch('/api/menu/items')
+      const response = await fetch('/api/menu')
       const data = await response.json()
-      console.log('🍽️ Menu items fetched:', data)
-      
-      if (data.success && data.data) {
-        setMenuItems(data.data)
-      } else {
-        console.error('Invalid menu items response:', data)
-        message.error('خطا در دریافت آیتم‌های منو')
+      if (data.items) {
+        setMenuItems(data.items.filter((item: MenuItem) => item.available))
       }
     } catch (error) {
       console.error('Error fetching menu items:', error)
-      message.error('خطا در دریافت آیتم‌های منو')
+      message.error('خطا در دریافت لیست منو')
     }
   }
 
-  const addItemToOrder = () => {
-    if (!selectedMenuItem) {
-      message.warning('لطفاً یک آیتم از منو انتخاب کنید')
-      return
-    }
-
-    if (quantity <= 0) {
-      message.warning('تعداد باید بیشتر از صفر باشد')
-      return
-    }
-
-    const menuItem = menuItems.find(item => item.id === selectedMenuItem)
-    if (!menuItem) return
-
-    // Check if item already exists in order
-    const existingItemIndex = selectedItems.findIndex(item => item.id === selectedMenuItem)
-    
-    if (existingItemIndex >= 0) {
-      // Update quantity of existing item
-      const updatedItems = [...selectedItems]
-      updatedItems[existingItemIndex].quantity += quantity
-      setSelectedItems(updatedItems)
-    } else {
-      // Add new item
-      const newItem: OrderItem = {
-        id: menuItem.id,
-        name: menuItem.name,
-        price: menuItem.price,
-        quantity: quantity
+  const fetchCustomers = async () => {
+    try {
+      const response = await fetch('/api/customers')
+      const data = await response.json()
+      if (data.customers) {
+        setCustomers(data.customers)
       }
-      setSelectedItems([...selectedItems, newItem])
+    } catch (error) {
+      console.error('Error fetching customers:', error)
+      message.error('خطا در دریافت لیست مشتریان')
     }
-
-    // Reset selection
-    setSelectedMenuItem('')
-    setQuantity(1)
-    message.success('آیتم به سفارش اضافه شد')
-  }
-
-  const removeItemFromOrder = (itemId: string) => {
-    setSelectedItems(selectedItems.filter(item => item.id !== itemId))
-    message.success('آیتم از سفارش حذف شد')
-  }
-
-  const updateItemQuantity = (itemId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeItemFromOrder(itemId)
-      return
-    }
-
-    setSelectedItems(selectedItems.map(item => 
-      item.id === itemId ? { ...item, quantity: newQuantity } : item
-    ))
   }
 
   const calculateTotal = () => {
-    return selectedItems.reduce((total, item) => total + (item.price * item.quantity), 0)
+    const newSubtotal = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    setSubtotal(newSubtotal)
+
+    let discountAmount = 0
+    if (discountType === 'percentage') {
+      discountAmount = (newSubtotal * discount) / 100
+    } else {
+      discountAmount = discount
+    }
+
+    const taxAmount = ((newSubtotal - discountAmount) * tax) / 100
+    const newTotal = newSubtotal - discountAmount + taxAmount + deliveryFee
+    setTotal(Math.max(0, newTotal))
+  }
+
+  const addMenuItem = (menuItemId: string) => {
+    const menuItem = menuItems.find(item => item.id === menuItemId)
+    if (!menuItem) return
+
+    const existingItem = selectedItems.find(item => item.menuItemId === menuItemId)
+    if (existingItem) {
+      setSelectedItems(prev => 
+        prev.map(item => 
+          item.menuItemId === menuItemId 
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        )
+      )
+    } else {
+      setSelectedItems(prev => [...prev, {
+        menuItemId: menuItemId,
+        name: menuItem.name,
+        price: menuItem.price,
+        quantity: 1,
+        notes: ''
+      }])
+    }
+  }
+
+  const updateItemQuantity = (menuItemId: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeItem(menuItemId)
+      return
+    }
+
+    setSelectedItems(prev => 
+      prev.map(item => 
+        item.menuItemId === menuItemId 
+          ? { ...item, quantity }
+          : item
+      )
+    )
+  }
+
+  const removeItem = (menuItemId: string) => {
+    setSelectedItems(prev => prev.filter(item => item.menuItemId !== menuItemId))
+  }
+
+  const updateItemNotes = (menuItemId: string, notes: string) => {
+    setSelectedItems(prev => 
+      prev.map(item => 
+        item.menuItemId === menuItemId 
+          ? { ...item, notes }
+          : item
+      )
+    )
   }
 
   const handleSubmit = async (values: any) => {
     if (selectedItems.length === 0) {
-      message.warning('لطفاً حداقل یک آیتم به سفارش اضافه کنید')
+      message.error('لطفاً حداقل یک آیتم انتخاب کنید')
       return
     }
 
     setLoading(true)
     try {
       const orderData = {
-        customer: {
+        customer: isNewCustomer ? {
           name: values.customerName,
-          phone: values.customerPhone
-        },
+          phone: values.customerPhone,
+          email: values.customerEmail,
+          address: values.customerAddress
+        } : values.customerId,
         items: selectedItems,
-        totalAmount: calculateTotal(),
-        status: 'New',
-        type: values.orderType,
-        orderNumber: `ORD-${Date.now()}`,
-        createdAt: new Date().toISOString()
+        type: orderType,
+        tableNumber: orderType === 'dine-in' ? values.tableNumber : null,
+        discount: discount,
+        discountType: discountType,
+        tax: tax,
+        deliveryFee: deliveryFee,
+        totalAmount: total,
+        notes: values.notes,
+        estimatedTime: values.estimatedTime,
+        paymentMethod: values.paymentMethod,
+        isNewCustomer: isNewCustomer
       }
 
       const response = await fetch('/api/orders', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData)
       })
 
       if (response.ok) {
-        message.success('سفارش با موفقیت ثبت شد')
+        message.success('سفارش با موفقیت ایجاد شد')
         form.resetFields()
         setSelectedItems([])
         onSuccess()
-        onCancel()
       } else {
-        throw new Error('خطا در ثبت سفارش')
+        const error = await response.json()
+        message.error(error.message || 'خطا در ایجاد سفارش')
       }
     } catch (error) {
       console.error('Error creating order:', error)
-      message.error('خطا در ثبت سفارش')
+      message.error('خطا در ایجاد سفارش')
     } finally {
       setLoading(false)
     }
   }
 
-  const orderItemColumns = [
+  const itemColumns = [
     {
-      title: 'نام آیتم',
+      title: 'محصول',
       dataIndex: 'name',
       key: 'name',
     },
@@ -191,173 +217,362 @@ export default function CreateOrderForm({ visible, onCancel, onSuccess }: Create
       title: 'قیمت واحد',
       dataIndex: 'price',
       key: 'price',
-      render: (price: number) => `${price.toLocaleString('fa-IR')} تومان`
+      render: (price: number) => `${price.toLocaleString()} ﷼`
     },
     {
       title: 'تعداد',
-      dataIndex: 'quantity',
       key: 'quantity',
-      render: (quantity: number, record: OrderItem) => (
+      render: (record: any) => (
         <InputNumber
           min={1}
-          value={quantity}
-          onChange={(value) => updateItemQuantity(record.id, value || 1)}
-          size="small"
-          style={{ width: 80 }}
+          value={record.quantity}
+          onChange={(value) => updateItemQuantity(record.menuItemId, value || 1)}
+          style={{ width: '80px' }}
         />
       )
     },
     {
-      title: 'قیمت کل',
+      title: 'جمع',
       key: 'total',
-      render: (_, record: OrderItem) => 
-        `${(record.price * record.quantity).toLocaleString('fa-IR')} تومان`
+      render: (record: any) => (
+        <Text strong>{(record.price * record.quantity).toLocaleString()} ﷼</Text>
+      )
+    },
+    {
+      title: 'یادداشت',
+      key: 'notes',
+      render: (record: any) => (
+        <Input
+          placeholder="یادداشت..."
+          value={record.notes}
+          onChange={(e) => updateItemNotes(record.menuItemId, e.target.value)}
+          style={{ width: '120px' }}
+        />
+      )
     },
     {
       title: 'عملیات',
       key: 'actions',
-      render: (_, record: OrderItem) => (
+      render: (record: any) => (
         <Button
-          size="small"
+          type="link"
           danger
           icon={<DeleteOutlined />}
-          onClick={() => removeItemFromOrder(record.id)}
-        />
+          onClick={() => removeItem(record.menuItemId)}
+        >
+          حذف
+        </Button>
       )
     }
   ]
 
   return (
     <Modal
-      title="ثبت سفارش جدید"
-      open={visible}
+      title="ایجاد سفارش جدید"
+      open={true}
       onCancel={onCancel}
-      width={1000}
       footer={null}
+      width={1200}
+      destroyOnClose
     >
       <Form
         form={form}
         layout="vertical"
         onFinish={handleSubmit}
+        initialValues={{
+          type: 'dine-in',
+          paymentMethod: 'cash',
+          estimatedTime: 30,
+          tax: 9
+        }}
       >
-        <Row gutter={16}>
+        <Row gutter={[16, 16]}>
+          {/* Customer Information */}
           <Col span={12}>
-            <Form.Item
-              name="customerName"
-              label="نام مشتری"
-              rules={[{ required: true, message: 'نام مشتری الزامی است' }]}
-            >
-              <Input placeholder="نام مشتری را وارد کنید" />
-            </Form.Item>
+            <Card title="اطلاعات مشتری" size="small">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Switch
+                  checked={isNewCustomer}
+                  onChange={setIsNewCustomer}
+                  checkedChildren="مشتری جدید"
+                  unCheckedChildren="مشتری موجود"
+                />
+
+                {!isNewCustomer ? (
+                  <Form.Item
+                    name="customerId"
+                    label="انتخاب مشتری"
+                    rules={[{ required: true, message: 'انتخاب مشتری الزامی است' }]}
+                  >
+                    <Select 
+                      placeholder="مشتری را انتخاب کنید"
+                      showSearch
+                      filterOption={(input, option) =>
+                        (option?.children as unknown as string)
+                          .toLowerCase()
+                          .includes(input.toLowerCase())
+                      }
+                    >
+                      {customers.map(customer => (
+                        <Option key={customer.id} value={customer.id}>
+                          {customer.name} - {customer.phone}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                ) : (
+                  <>
+                    <Form.Item
+                      name="customerName"
+                      label="نام مشتری"
+                      rules={[{ required: true, message: 'نام مشتری الزامی است' }]}
+                    >
+                      <Input placeholder="نام مشتری" />
+                    </Form.Item>
+                    <Form.Item
+                      name="customerPhone"
+                      label="شماره تلفن"
+                      rules={[{ required: true, message: 'شماره تلفن الزامی است' }]}
+                    >
+                      <Input placeholder="شماره تلفن" />
+                    </Form.Item>
+                    <Form.Item name="customerEmail" label="ایمیل">
+                      <Input placeholder="ایمیل (اختیاری)" />
+                    </Form.Item>
+                    <Form.Item name="customerAddress" label="آدرس">
+                      <TextArea placeholder="آدرس (اختیاری)" rows={2} />
+                    </Form.Item>
+                  </>
+                )}
+              </Space>
+            </Card>
           </Col>
+
+          {/* Order Information */}
           <Col span={12}>
-            <Form.Item
-              name="customerPhone"
-              label="شماره تلفن"
-              rules={[{ required: true, message: 'شماره تلفن الزامی است' }]}
-            >
-              <Input placeholder="شماره تلفن مشتری" />
-            </Form.Item>
+            <Card title="اطلاعات سفارش" size="small">
+              <Row gutter={[16, 16]}>
+                <Col span={12}>
+                  <Form.Item label="نوع سفارش">
+                    <Select
+                      value={orderType}
+                      onChange={setOrderType}
+                    >
+                      <Option value="dine-in">حضوری</Option>
+                      <Option value="takeaway">بیرون‌بر</Option>
+                      <Option value="delivery">ارسالی</Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                
+                {orderType === 'dine-in' && (
+                  <Col span={12}>
+                    <Form.Item name="tableNumber" label="شماره میز">
+                      <InputNumber 
+                        placeholder="شماره میز"
+                        min={1}
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                  </Col>
+                )}
+
+                <Col span={12}>
+                  <Form.Item name="estimatedTime" label="زمان تخمینی (دقیقه)">
+                    <InputNumber
+                      min={5}
+                      max={120}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col span={12}>
+                  <Form.Item name="paymentMethod" label="روش پرداخت">
+                    <Select>
+                      <Option value="cash">نقدی</Option>
+                      <Option value="card">کارتی</Option>
+                      <Option value="online">آنلاین</Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
           </Col>
         </Row>
 
-        <Form.Item
-          name="orderType"
-          label="نوع سفارش"
-          rules={[{ required: true, message: 'نوع سفارش الزامی است' }]}
-        >
-          <Select placeholder="نوع سفارش را انتخاب کنید">
-            <Option value="Dine-in">حضوری</Option>
-            <Option value="Takeaway">بیرون بر</Option>
-            <Option value="Delivery">تحویل</Option>
-          </Select>
+        <Divider>انتخاب محصولات</Divider>
+
+        {/* Menu Items Selection */}
+        <Row gutter={[16, 16]}>
+          <Col span={12}>
+            <Card title="منو" size="small" style={{ height: '400px', overflow: 'auto' }}>
+              {menuItems.map(item => (
+                <Card
+                  key={item.id}
+                  size="small"
+                  style={{ marginBottom: 8, cursor: 'pointer' }}
+                  onClick={() => addMenuItem(item.id)}
+                  hoverable
+                >
+                  <Row justify="space-between" align="middle">
+                    <Col>
+                      <Text strong>{item.name}</Text>
+                      <br />
+                      <Tag color="blue">{item.category}</Tag>
+                    </Col>
+                    <Col>
+                      <Text style={{ color: '#52c41a' }}>
+                        {item.price.toLocaleString()} ﷼
+                      </Text>
+                    </Col>
+                  </Row>
+                </Card>
+              ))}
+            </Card>
+          </Col>
+
+          <Col span={12}>
+            <Card title="سبد خرید" size="small" style={{ height: '400px' }}>
+              {selectedItems.length > 0 ? (
+                <Table
+                  dataSource={selectedItems}
+                  columns={itemColumns}
+                  pagination={false}
+                  size="small"
+                  scroll={{ y: 300 }}
+                  rowKey="menuItemId"
+                />
+              ) : (
+                <div style={{ textAlign: 'center', padding: '50px', color: '#ccc' }}>
+                  هیچ محصولی انتخاب نشده است
+                </div>
+              )}
+            </Card>
+          </Col>
+        </Row>
+
+        <Divider>محاسبات مالی</Divider>
+
+        {/* Financial Calculations */}
+        <Row gutter={[16, 16]}>
+          <Col span={12}>
+            <Card title="تنظیمات مالی" size="small">
+              <Row gutter={[16, 16]}>
+                <Col span={12}>
+                  <Text>نوع تخفیف:</Text>
+                  <Select
+                    value={discountType}
+                    onChange={setDiscountType}
+                    style={{ width: '100%', marginTop: 4 }}
+                  >
+                    <Option value="percentage">درصد</Option>
+                    <Option value="amount">مبلغ</Option>
+                  </Select>
+                </Col>
+                <Col span={12}>
+                  <Text>میزان تخفیف:</Text>
+                  <InputNumber
+                    value={discount}
+                    onChange={(value) => setDiscount(value || 0)}
+                    style={{ width: '100%', marginTop: 4 }}
+                    min={0}
+                    suffix={discountType === 'percentage' ? '%' : '﷼'}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Text>مالیات (%):</Text>
+                  <InputNumber
+                    value={tax}
+                    onChange={(value) => setTax(value || 0)}
+                    style={{ width: '100%', marginTop: 4 }}
+                    min={0}
+                    max={50}
+                    suffix="%"
+                  />
+                </Col>
+                {orderType === 'delivery' && (
+                  <Col span={12}>
+                    <Text>هزینه ارسال:</Text>
+                    <InputNumber
+                      value={deliveryFee}
+                      onChange={(value) => setDeliveryFee(value || 0)}
+                      style={{ width: '100%', marginTop: 4 }}
+                      min={0}
+                      suffix="﷼"
+                    />
+                  </Col>
+                )}
+              </Row>
+            </Card>
+          </Col>
+
+          <Col span={12}>
+            <Card title="خلاصه مالی" size="small">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Row justify="space-between">
+                  <Text>جمع آیتم‌ها:</Text>
+                  <Text>{subtotal.toLocaleString()} ﷼</Text>
+                </Row>
+                {discount > 0 && (
+                  <Row justify="space-between">
+                    <Text>تخفیف:</Text>
+                    <Text style={{ color: '#ff4d4f' }}>
+                      -{discountType === 'percentage' 
+                        ? ((subtotal * discount) / 100).toLocaleString()
+                        : discount.toLocaleString()} ﷼
+                    </Text>
+                  </Row>
+                )}
+                {tax > 0 && (
+                  <Row justify="space-between">
+                    <Text>مالیات:</Text>
+                    <Text>{(((subtotal - (discountType === 'percentage' ? (subtotal * discount) / 100 : discount)) * tax) / 100).toLocaleString()} ﷼</Text>
+                  </Row>
+                )}
+                {deliveryFee > 0 && (
+                  <Row justify="space-between">
+                    <Text>هزینه ارسال:</Text>
+                    <Text>{deliveryFee.toLocaleString()} ﷼</Text>
+                  </Row>
+                )}
+                <Divider style={{ margin: '8px 0' }} />
+                <Row justify="space-between">
+                  <Text strong style={{ fontSize: '16px' }}>مبلغ نهایی:</Text>
+                  <Text strong style={{ fontSize: '16px', color: '#52c41a' }}>
+                    {total.toLocaleString()} ﷼
+                  </Text>
+                </Row>
+              </Space>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Notes */}
+        <Form.Item name="notes" label="یادداشت سفارش">
+          <TextArea rows={3} placeholder="یادداشت اضافی برای سفارش..." />
         </Form.Item>
 
-        <Divider orientation="right">افزودن آیتم به سفارش</Divider>
-
-        <Card size="small" style={{ marginBottom: 16 }}>
-          <Space.Compact style={{ width: '100%' }}>
-            <Select
-              style={{ width: '40%' }}
-              placeholder="انتخاب آیتم از منو"
-              value={selectedMenuItem}
-              onChange={setSelectedMenuItem}
-              showSearch
-              filterOption={(input, option) =>
-                (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-              }
-            >
-              {menuItems.map(item => (
-                <Option key={item.id} value={item.id}>
-                  {item.name} - {item.price.toLocaleString('fa-IR')} تومان
-                </Option>
-              ))}
-            </Select>
-            <InputNumber
-              style={{ width: '20%' }}
-              min={1}
-              value={quantity}
-              onChange={(value) => setQuantity(value || 1)}
-              placeholder="تعداد"
-            />
-            <Button
-              style={{ width: '40%' }}
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={addItemToOrder}
-            >
-              افزودن به سفارش
-            </Button>
-          </Space.Compact>
-        </Card>
-
-        <Divider orientation="right">آیتم‌های سفارش</Divider>
-
-        <Table
-          dataSource={selectedItems}
-          columns={orderItemColumns}
-          rowKey="id"
-          pagination={false}
-          size="small"
-          locale={{ emptyText: 'هیچ آیتمی به سفارش اضافه نشده' }}
-        />
-
-        {selectedItems.length > 0 && (
-          <Card style={{ marginTop: 16 }}>
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Text strong>تعداد آیتم‌ها: {selectedItems.length}</Text>
-              </Col>
-              <Col>
-                <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
-                  جمع کل: {calculateTotal().toLocaleString('fa-IR')} تومان
-                </Title>
-              </Col>
-            </Row>
-          </Card>
-        )}
-
-        <Divider />
-
-        <Row justify="end" gutter={8}>
-          <Col>
+        {/* Submit Buttons */}
+        <Row justify="end" style={{ marginTop: 24 }}>
+          <Space>
             <Button onClick={onCancel}>
               انصراف
             </Button>
-          </Col>
-          <Col>
-            <Button
-              type="primary"
-              htmlType="submit"
+            <Button 
+              type="primary" 
+              htmlType="submit" 
               loading={loading}
               icon={<ShoppingCartOutlined />}
               disabled={selectedItems.length === 0}
             >
               ثبت سفارش
             </Button>
-          </Col>
+          </Space>
         </Row>
       </Form>
     </Modal>
   )
 }
+
+export default CreateOrderForm

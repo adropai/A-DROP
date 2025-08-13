@@ -1,60 +1,32 @@
 'use client'
 
 import React from 'react'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
+import { Bar } from 'react-chartjs-2'
 
-interface AnalyticsChartProps {
-  data?: Array<{
-    type: string
-    value: number
-  }>
-  loading?: boolean
-}
+const AnalyticsChart: React.FC<any> = ({ data, ...props }) => {
+  const chartData = {
+    labels: ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور'],
+    datasets: [
+      {
+        label: 'درآمد ماهانه (میلیون تومان)',
+        data: [120, 150, 180, 200, 160, 140],
+        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+        borderColor: 'rgb(34, 197, 94)',
+        borderWidth: 1
+      }
+    ]
+  }
 
-const COLORS = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#fa8c16']
+  const options = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+    },
+  }
 
-const AnalyticsChart: React.FC<AnalyticsChartProps> = ({ 
-  data = [
-    { type: 'حضوری', value: 45 },
-    { type: 'آنلاین', value: 30 },
-    { type: 'تلفنی', value: 15 },
-    { type: 'پیک', value: 10 }
-  ],
-  loading = false 
-}) => {
-  return (
-    <div style={{ width: '100%', height: '100%' }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            outerRadius={80}
-            innerRadius={40}
-            paddingAngle={5}
-            dataKey="value"
-            label={({ type, percent }) => `${type}: ${(percent * 100).toFixed(0)}%`}
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip 
-            formatter={(value, name) => [
-              `${value} سفارش`,
-              name
-            ]}
-          />
-          <Legend 
-            verticalAlign="bottom"
-            height={36}
-            formatter={(value) => value}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-    </div>
-  )
+  return <Bar data={chartData} options={options} {...props} />
 }
 
 export default AnalyticsChart

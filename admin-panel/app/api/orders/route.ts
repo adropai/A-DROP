@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { withAuth, PERMISSIONS, type AuthenticatedRequest } from '@/lib/auth-middleware';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(PERMISSIONS.ORDERS_VIEW)(async function(request: AuthenticatedRequest) {
   try {
     console.log('📦 Orders API called - fetching from database');
+    console.log('🔐 User permissions:', request.user?.permissions);
     
-    // Get orders from database with related data
     const orders = await prisma.order.findMany({
       include: {
         items: {
@@ -19,7 +20,6 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Transform orders to match frontend expected format
     const transformedOrders = orders.map(order => ({
       id: order.id.toString(),
       orderNumber: order.orderNumber,
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       })),
       totalAmount: order.totalAmount,
       status: order.status,
-      type: (order as any).type || 'Dine-in', // Use type from database
+      type: (order as any).type || 'Dine-in',
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
     }));
@@ -63,14 +63,14 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(PERMISSIONS.ORDERS_CREATE)(async function(request: AuthenticatedRequest) {
   try {
     const body = await request.json();
     console.log('📦 Creating new order:', body);
+    console.log('🔐 Created by user:', request.user?.email);
     
-    // Create order with items in database
     const newOrder = await prisma.order.create({
       data: {
         orderNumber: body.orderNumber || `ORD-${Date.now()}`,
@@ -101,45 +101,107 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    console.log('📦 New order created with ID:', newOrder.id);
-    
-    // Transform to match frontend format
-    const transformedOrder = {
-      id: newOrder.id.toString(),
-      orderNumber: newOrder.orderNumber,
-      customer: {
-        id: newOrder.customerId || `temp_${newOrder.id}`,
-        name: newOrder.customerName || '',
-        phone: newOrder.customerPhone || ''
-      },
-      items: (newOrder as any).items?.map((item: any) => ({
-        id: item.menuItem.id,
-        name: item.menuItem.name,
-        quantity: item.quantity,
-        price: item.price
-      })) || [],
-      totalAmount: newOrder.totalAmount,
-      status: newOrder.status,
-      type: (newOrder as any).type || 'Dine-in',
-      createdAt: newOrder.createdAt.toISOString(),
-      updatedAt: newOrder.updatedAt.toISOString(),
-    };
+    console.log('📦 Order created successfully:', newOrder.id);
     
     return NextResponse.json({
       success: true,
-      message: 'سفارش جدید ایجاد شد',
-      order: transformedOrder
-    }, { status: 201 });
-    
+      message: 'سفارش با موفقیت ثبت شد',
+      order: {
+        id: newOrder.id.toString(),
+        orderNumber: newOrder.orderNumber,
+        customer: {
+          id: newOrder.customerId || `temp_${newOrder.id}`,
+          name: newOrder.customerName || 'مشتری ناشناس',
+          phone: newOrder.customerPhone || ''
+        },
+        items: newOrder.items.map(item => ({
+          id: item.menuItem.id,
+          name: item.menuItem.name,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        totalAmount: newOrder.totalAmount,
+        status: newOrder.status,
+        type: (newOrder as any).type || 'Dine-in',
+        createdAt: newOrder.createdAt.toISOString(),
+        updatedAt: newOrder.updatedAt.toISOString(),
+      }
+    });
+
   } catch (error: any) {
-    console.error('Error creating order:', error);
+    console.error('Orders creation error:', error);
     return NextResponse.json(
       { 
         success: false,
-        message: 'خطا در ایجاد سفارش',
+        message: 'خطا در ثبت سفارش',
         error: error.message 
       },
       { status: 500 }
     );
   }
-}
+});
+
+export const PATCH = withAuth(PERMISSIONS.ORDERS_UPDATE)(async function(request: AuthenticatedRequest) {
+  try {
+    const body = await request.json();
+    const { orderId, status, notes } = body;
+    
+    console.log('📦 Updating order status:', { orderId, status });
+    console.log('🔐 Updated by user:', request.user?.email);
+
+    if (!orderId || !status) {
+      return NextResponse.json(
+        { success: false, message: 'شناسه سفارش و وضعیت الزامی است' },
+        { status: 400 }
+      );
+    }
+
+    const validStatuses = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERED', 'CANCELLED'];
+    
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json(
+        { success: false, message: 'وضعیت نامعتبر' },
+        { status: 400 }
+      );
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: parseInt(orderId) },
+      data: {
+        status,
+        notes: notes || undefined,
+      },
+      include: {
+        items: {
+          include: {
+            menuItem: true
+          }
+        }
+      }
+    });
+
+    console.log('📦 Order status updated successfully:', updatedOrder.id);
+
+    return NextResponse.json({
+      success: true,
+      message: 'وضعیت سفارش به‌روزرسانی شد',
+      order: {
+        id: updatedOrder.id.toString(),
+        orderNumber: updatedOrder.orderNumber,
+        status: updatedOrder.status,
+        updatedAt: updatedOrder.updatedAt.toISOString(),
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Order status update error:', error);
+    return NextResponse.json(
+      { 
+        success: false,
+        message: 'خطا در به‌روزرسانی وضعیت سفارش',
+        error: error.message 
+      },
+      { status: 500 }
+    );
+  }
+});

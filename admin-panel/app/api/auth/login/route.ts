@@ -2,36 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { sign } from 'jsonwebtoken';
+import { loginRateLimiter, getClientIdentifier } from '@/lib/rate-limiter';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key';
-
-// Mock users for testing (در پروداکشن از دیتابیس استفاده شود)
-const mockUsers = [
-  {
-    id: 1,
-    email: 'admin@adrop.com',
-    password: 'password123', // در واقعیت hash شده
-    firstName: 'مدیر',
-    lastName: 'سیستم',
-    role: { name: 'admin', permissions: ['*'] },
-    status: 'active',
-    lastLogin: null
-  },
-  {
-    id: 2,
-    email: 'manager@adrop.com', 
-    password: 'password123',
-    firstName: 'مدیر',
-    lastName: 'رستوران',
-    role: { name: 'manager', permissions: ['orders', 'menu', 'tables'] },
-    status: 'active',
-    lastLogin: null
-  }
-];
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-this-in-production';
 
 // POST /api/auth/login - ورود کاربر
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check
+    const clientId = getClientIdentifier(request);
+    
+    if (!loginRateLimiter.isAllowed(clientId)) {
+      const remaining = loginRateLimiter.getRemainingAttempts(clientId);
+      const resetTime = loginRateLimiter.getResetTime(clientId);
+      
+      return NextResponse.json(
+        { 
+          message: 'تعداد تلاش‌های ورود بیش از حد مجاز. لطفاً بعداً تلاش کنید.',
+          remaining: remaining,
+          resetTime: new Date(resetTime).toISOString()
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { email, password, remember } = body;
 
@@ -43,8 +37,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find user
-    const user = mockUsers.find(u => u.email === email);
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { message: 'فرمت ایمیل صحیح نیست' },
+        { status: 400 }
+      );
+    }
+
+    // Find user in database
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
     
     if (!user) {
       return NextResponse.json(
@@ -53,27 +58,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check password - برای تست، مقایسه ساده
-    let isValidPassword = false;
-    
-    // Clean the password (remove any extra whitespace)
-    const cleanPassword = password.trim();
-    
-    // For testing, always allow password123
-    if (cleanPassword === 'password123') {
-      isValidPassword = true;
-    } 
-    // For admin users, also check some common passwords
-    else if (user.email === 'admin@adrop.com' && (cleanPassword === 'admin' || cleanPassword === '123456' || cleanPassword === 'admin123')) {
-      isValidPassword = true;
-    }
-    // Also try the original password as-is
-    else if (cleanPassword.length > 0) {
-      // For development, be more lenient
-      if (cleanPassword.toLowerCase() === 'password123' || cleanPassword === user.email.split('@')[0]) {
-        isValidPassword = true;
-      }
-    }
+    // Check password with bcrypt
+    const isValidPassword = await bcrypt.compare(password, user.password);
     
     if (!isValidPassword) {
       return NextResponse.json(
@@ -83,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check user status
-    if (user.status !== 'active') {
+    if (user.status !== 'ACTIVE') {
       return NextResponse.json(
         { message: 'حساب کاربری غیرفعال است' },
         { status: 401 }
@@ -96,7 +82,7 @@ export async function POST(request: NextRequest) {
       { 
         userId: user.id,
         email: user.email,
-        role: user.role.name,
+        role: user.role,
       },
       JWT_SECRET,
       { expiresIn: tokenExpiry }
@@ -105,8 +91,11 @@ export async function POST(request: NextRequest) {
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
 
-    // Update last login (در پروداکشن در دیتابیس ذخیره شود)
-    user.lastLogin = new Date();
+    // Update last login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() }
+    });
 
     // Create response with cookie
     const response = NextResponse.json({
@@ -118,17 +107,16 @@ export async function POST(request: NextRequest) {
     // Set cookie for authentication
     const cookieExpiry = remember ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000; // 30 days or 1 day in milliseconds
     
-    console.log('🍪 Setting auth_token cookie with token:', token.substring(0, 20) + '...');
     response.cookies.set('auth_token', token, {
       httpOnly: true,
-      secure: false, // فقط در production فعال شود
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: cookieExpiry / 1000, // maxAge is in seconds
       path: '/'
     });
-    console.log('✅ Cookie set in response');
 
-    return response;  } catch (error: any) {
+    return response;
+  } catch (error: any) {
     console.error('Login error:', error);
     return NextResponse.json(
       { message: 'خطای سرور' },
@@ -140,16 +128,18 @@ export async function POST(request: NextRequest) {
 // GET /api/auth/login - بررسی وضعیت لاگین (برای تست)
 export async function GET(request: NextRequest) {
   try {
+    // Check if we have any users in database
+    const userCount = await prisma.user.count();
+    
     return NextResponse.json({
-      message: 'Login endpoint is working',
-      availableUsers: mockUsers.map(u => ({
-        email: u.email,
-        role: u.role.name
-      }))
+      message: 'Authentication endpoint is working',
+      database: 'Connected to Prisma',
+      userCount: userCount,
+      status: 'OK'
     });
   } catch (error) {
     return NextResponse.json(
-      { message: 'خطای سرور' },
+      { message: 'خطای اتصال به دیتابیس', error: error.message },
       { status: 500 }
     );
   }

@@ -1,210 +1,138 @@
-// Advanced Analytics API
-import { NextRequest, NextResponse } from 'next/server';
-import { AdvancedAnalyticsEngine, ReportConfig, DateRange } from '../../../../lib/advanced-analytics';
+import { NextRequest, NextResponse } from 'next/server'
 
-const analyticsEngine = new AdvancedAnalyticsEngine();
-
-// GET - دریافت گزارشات یا متریک‌ها
-export async function GET(req: NextRequest) {
+// Advanced Analytics API for Phase 4
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const type = searchParams.get('type');
-    const reportId = searchParams.get('reportId');
-    const dateFrom = searchParams.get('dateFrom');
-    const dateTo = searchParams.get('dateTo');
-    const branchId = searchParams.get('branchId');
+    const { searchParams } = new URL(request.url)
+    const type = searchParams.get('type')
+    const period = searchParams.get('period') || 'day'
 
-    // تعریف محدوده زمانی
-    const dateRange: DateRange = {
-      from: dateFrom ? new Date(dateFrom) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-      to: dateTo ? new Date(dateTo) : new Date()
-    };
-
-    switch (type) {
-      case 'reports':
-        const reports = analyticsEngine.getAllReports();
-        return NextResponse.json(reports);
-
-      case 'report':
-        if (!reportId) {
-          return NextResponse.json({ error: 'شناسه گزارش الزامی است' }, { status: 400 });
-        }
-        const reportData = await analyticsEngine.generateReport(reportId);
-        return NextResponse.json(reportData);
-
-      case 'sales-metrics':
-        const salesMetrics = await analyticsEngine.getSalesMetrics(dateRange, branchId || undefined);
-        return NextResponse.json(salesMetrics);
-
-      case 'customer-metrics':
-        const customerMetrics = await analyticsEngine.getCustomerMetrics(dateRange);
-        return NextResponse.json(customerMetrics);
-
-      case 'forecast':
-        const metric = searchParams.get('metric') || 'sales';
-        const periods = parseInt(searchParams.get('periods') || '30');
-        const forecast = await analyticsEngine.generateForecast(metric, periods);
-        return NextResponse.json(forecast);
-
-      case 'comparison':
-        const comparisonMetric = searchParams.get('metric') || 'sales';
-        const periodsArray = searchParams.get('periods')?.split(',') || ['current', 'previous'];
-        const comparison = await analyticsEngine.compareMetrics(comparisonMetric, periodsArray);
-        return NextResponse.json(comparison);
-
-      case 'insights':
-        const insights = await analyticsEngine.getRealTimeInsights();
-        return NextResponse.json(insights);
-
-      case 'dashboard':
-        const dashboardId = searchParams.get('dashboardId');
-        if (!dashboardId) {
-          return NextResponse.json({ error: 'شناسه داشبورد الزامی است' }, { status: 400 });
-        }
-        const dashboardData = await analyticsEngine.getDashboardData(dashboardId);
-        return NextResponse.json(dashboardData);
-
-      default:
-        return NextResponse.json({ error: 'نوع درخواست نامعتبر است' }, { status: 400 });
+    // Mock advanced analytics data for Phase 4
+    const mockData = {
+      revenue: generateRevenueAnalytics(period),
+      customers: generateCustomerAnalytics(period),
+      products: generateProductAnalytics(period),
+      realtime: generateRealtimeAnalytics()
     }
+
+    if (type && mockData[type as keyof typeof mockData]) {
+      return NextResponse.json({
+        success: true,
+        data: mockData[type as keyof typeof mockData],
+        timestamp: new Date().toISOString()
+      })
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: mockData,
+      timestamp: new Date().toISOString()
+    })
+
   } catch (error) {
-    console.error('Analytics API Error:', error);
-    return NextResponse.json({ 
-      error: 'خطا در دریافت اطلاعات تحلیلی' 
-    }, { status: 500 });
+    console.error('Advanced Analytics API Error:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'خطا در دریافت اطلاعات آنالیتیک پیشرفته' 
+      },
+      { status: 500 }
+    )
   }
 }
 
-// POST - ایجاد گزارش جدید
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { type } = body;
-
-    switch (type) {
-      case 'report':
-        const { name, description, reportType, dataSource, filters, groupBy, sortBy, chartType, dateRange, isScheduled, scheduleConfig } = body;
-        
-        if (!name || !reportType || !dataSource) {
-          return NextResponse.json({ 
-            error: 'اطلاعات گزارش ناقص است' 
-          }, { status: 400 });
-        }
-
-        const reportConfig: Omit<ReportConfig, 'id' | 'createdAt' | 'updatedAt'> = {
-          name,
-          description: description || '',
-          type: reportType,
-          dataSource: Array.isArray(dataSource) ? dataSource : [dataSource],
-          filters: filters || [],
-          groupBy: groupBy || [],
-          sortBy: sortBy || [],
-          chartType,
-          dateRange: {
-            from: new Date(dateRange.from),
-            to: new Date(dateRange.to),
-            preset: dateRange.preset
-          },
-          refreshInterval: body.refreshInterval || 15,
-          isScheduled: isScheduled || false,
-          scheduleConfig,
-          createdBy: body.createdBy || 'system'
-        };
-
-        const reportId = analyticsEngine.createReport(reportConfig);
-        const newReport = analyticsEngine.getReport(reportId);
-
-        return NextResponse.json({ 
-          success: true, 
-          reportId, 
-          report: newReport 
-        }, { status: 201 });
-
-      case 'dashboard':
-        const { widgets } = body;
-        if (!widgets || !Array.isArray(widgets)) {
-          return NextResponse.json({ 
-            error: 'ویجت‌های داشبورد الزامی است' 
-          }, { status: 400 });
-        }
-
-        const dashboardId = await analyticsEngine.createDashboard(widgets);
-        return NextResponse.json({ 
-          success: true, 
-          dashboardId 
-        }, { status: 201 });
-
-      default:
-        return NextResponse.json({ 
-          error: 'نوع عملیات نامعتبر است' 
-        }, { status: 400 });
+// Revenue Analytics Generator
+function generateRevenueAnalytics(period: string) {
+  const now = new Date()
+  const days = period === 'hour' ? 24 : 30
+  
+  const data = []
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(now)
+    if (period === 'hour') {
+      date.setHours(date.getHours() - i)
+    } else {
+      date.setDate(date.getDate() - i)
     }
-  } catch (error) {
-    console.error('Analytics API Error:', error);
-    return NextResponse.json({ 
-      error: 'خطا در ایجاد گزارش' 
-    }, { status: 500 });
-  }
-}
-
-// PUT - بروزرسانی گزارش
-export async function PUT(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { reportId, updates } = body;
-
-    if (!reportId) {
-      return NextResponse.json({ 
-        error: 'شناسه گزارش الزامی است' 
-      }, { status: 400 });
-    }
-
-    const success = analyticsEngine.updateReport(reportId, updates);
     
-    if (!success) {
-      return NextResponse.json({ 
-        error: 'گزارش یافت نشد' 
-      }, { status: 404 });
+    const revenue = Math.floor(Math.random() * 2000000) + 500000
+    const orders = Math.floor(Math.random() * 200) + 50
+    
+    data.push({
+      period: formatPeriod(date, period),
+      revenue,
+      orders,
+      avgOrderValue: revenue / orders,
+      growth: (Math.random() - 0.5) * 40
+    })
+  }
+  
+  return {
+    timeline: data,
+    summary: {
+      totalRevenue: data.reduce((sum, item) => sum + item.revenue, 0),
+      totalOrders: data.reduce((sum, item) => sum + item.orders, 0),
+      avgGrowthRate: data.reduce((sum, item) => sum + item.growth, 0) / data.length,
+      peakRevenue: Math.max(...data.map(item => item.revenue))
     }
-
-    const updatedReport = analyticsEngine.getReport(reportId);
-    return NextResponse.json({ 
-      success: true, 
-      report: updatedReport 
-    });
-  } catch (error) {
-    console.error('Analytics API Error:', error);
-    return NextResponse.json({ 
-      error: 'خطا در بروزرسانی گزارش' 
-    }, { status: 500 });
   }
 }
 
-// DELETE - حذف گزارش
-export async function DELETE(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const reportId = searchParams.get('reportId');
-
-    if (!reportId) {
-      return NextResponse.json({ 
-        error: 'شناسه گزارش الزامی است' 
-      }, { status: 400 });
+// Customer Analytics Generator
+function generateCustomerAnalytics(period: string) {
+  return {
+    acquisition: {
+      newCustomers: Math.floor(Math.random() * 100) + 50,
+      acquisitionCost: Math.floor(Math.random() * 50000) + 25000,
+      conversionRate: (Math.random() * 15) + 10,
+      channels: [
+        { name: 'اپلیکیشن موبایل', customers: 450, percentage: 45 },
+        { name: 'وبسایت', customers: 280, percentage: 28 },
+        { name: 'رسانه‌های اجتماعی', customers: 150, percentage: 15 },
+        { name: 'ارجاع', customers: 120, percentage: 12 }
+      ]
     }
+  }
+}
 
-    const success = analyticsEngine.deleteReport(reportId);
-    
-    if (!success) {
-      return NextResponse.json({ 
-        error: 'گزارش یافت نشد' 
-      }, { status: 404 });
+// Product Analytics Generator
+function generateProductAnalytics(period: string) {
+  return {
+    performance: [
+      {
+        id: '1',
+        name: 'پیتزا مارگاریتا',
+        category: 'پیتزا',
+        sales: 156,
+        revenue: 936000,
+        growth: 12.5,
+        rating: 4.7,
+        margin: 65.2
+      }
+    ]
+  }
+}
+
+// Realtime Analytics Generator
+function generateRealtimeAnalytics() {
+  return {
+    live: {
+      activeOrders: Math.floor(Math.random() * 25) + 15,
+      onlineCustomers: Math.floor(Math.random() * 150) + 80,
+      todayRevenue: Math.floor(Math.random() * 500000) + 1200000,
+      todayOrders: Math.floor(Math.random() * 50) + 120
     }
+  }
+}
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Analytics API Error:', error);
-    return NextResponse.json({ 
-      error: 'خطا در حذف گزارش' 
-    }, { status: 500 });
+// Helper function to format period
+function formatPeriod(date: Date, period: string): string {
+  switch (period) {
+    case 'hour':
+      return date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
+    case 'day':
+      return date.toLocaleDateString('fa-IR', { month: 'short', day: 'numeric' })
+    default:
+      return date.toLocaleDateString('fa-IR')
   }
 }

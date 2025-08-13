@@ -419,6 +419,34 @@ enum UserRole {
   STAFF
 }
 
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String     // hashed with bcrypt
+  name      String?
+  firstName String?
+  lastName  String?
+  phone     String?
+  avatar    String?
+  role      UserRole   @default(STAFF)
+  status    UserStatus @default(ACTIVE)
+  lastLogin DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  // Relations
+  userPermissions UserPermission[]
+
+  @@map("users")
+}
+
 enum BranchStatus {
   ACTIVE
   INACTIVE
@@ -531,4 +559,51 @@ model StockMovement {
   item          InventoryItem @relation(fields: [itemId], references: [id])
 
   @@map("stock_movements")
+}
+
+// Permission Management Models
+model Permission {
+  id            String              @id @default(cuid())
+  name          String              @unique
+  description   String
+  module        String              // e.g., "orders", "menu", "staff"
+  action        String              // e.g., "read", "write", "delete", "admin"
+  resource      String?             // specific resource if needed
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  
+  // Relations
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+
+  @@unique([module, action, resource])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  role         UserRole
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permissionId String
+  granted      Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  @@unique([role, permissionId])
+  @@map("role_permissions")
+}
+
+model UserPermission {
+  id           String     @id @default(cuid())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permissionId String
+  granted      Boolean    @default(true)
+  expiresAt    DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
 }

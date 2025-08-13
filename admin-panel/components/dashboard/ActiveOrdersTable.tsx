@@ -1,216 +1,123 @@
 'use client'
 
-import React from 'react'
-import { Table, Tag, Button, Space, Avatar, Typography, Tooltip } from 'antd'
-import { 
-  EyeOutlined, 
-  EditOutlined, 
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  ShopOutlined,
-  CarOutlined,
-  SendOutlined,
-  UserOutlined
-} from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
-
-const { Text } = Typography
+import React, { useState, useEffect } from 'react'
+import { Card, Table, Tag, Button, Space, message } from 'antd'
+import { EyeOutlined, CheckOutlined, ClockCircleOutlined } from '@ant-design/icons'
 
 interface Order {
   id: string
-  orderNumber: string
-  customerName: string
-  customerAvatar?: string
+  tableNumber: string
   items: string[]
-  total: number
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered'
-  type: 'dine-in' | 'takeaway' | 'delivery'
-  time: string
-  estimatedTime?: number
+  totalAmount: number
+  status: 'PENDING' | 'PREPARING' | 'READY' | 'DELIVERED'
+  createdAt: string
+  customerName?: string
 }
 
-interface ActiveOrdersTableProps {
-  orders?: Order[]
-  loading?: boolean
-  onStatusChange?: (orderId: string, newStatus: any) => Promise<void>
-}
+const ActiveOrdersTable: React.FC = () => {
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(false)
 
-const ActiveOrdersTable: React.FC<ActiveOrdersTableProps> = ({ 
-  orders: propOrders, 
-  loading = false, 
-  onStatusChange 
-}) => {
-  // Default mock data - در حالت واقعی از API دریافت می‌شود
-  const defaultOrders: Order[] = [
-    {
-      id: '1',
-      orderNumber: '#1234',
-      customerName: 'احمد محمدی',
-      items: ['چلو کباب کوبیده', 'نوشابه', 'سالاد شیرازی'],
-      total: 485000,
-      status: 'preparing',
-      type: 'dine-in',
-      time: '14:30',
-      estimatedTime: 15
-    },
-    {
-      id: '2',
-      orderNumber: '#1235',
-      customerName: 'فاطمه احمدی',
-      items: ['پیتزا مخصوص', 'آبمیوه'],
-      total: 320000,
-      status: 'confirmed',
-      type: 'delivery',
-      time: '14:25',
-      estimatedTime: 25
-    },
-    {
-      id: '3',
-      orderNumber: '#1236',
-      customerName: 'علی رضایی',
-      items: ['برگر مخصوص', 'سیب زمینی', 'کوکاکولا'],
-      total: 280000,
-      status: 'ready',
-      type: 'takeaway',
-      time: '14:20'
-    },
-    {
-      id: '4',
-      orderNumber: '#1237',
-      customerName: 'مریم کریمی',
-      items: ['جوجه کباب', 'برنج زعفرانی'],
-      total: 420000,
-      status: 'pending',
-      type: 'dine-in',
-      time: '14:35',
-      estimatedTime: 20
-    },
-    {
-      id: '5',
-      orderNumber: '#1238',
-      customerName: 'محسن نوری',
-      items: ['قرمه سبزی', 'برنج', 'دوغ'],
-      total: 180000,
-      status: 'preparing',
-      type: 'delivery',
-      time: '14:15',
-      estimatedTime: 30
-    }
-  ]
+  // Mock data
+  useEffect(() => {
+    const mockOrders: Order[] = [
+      {
+        id: '1247',
+        tableNumber: '12',
+        items: ['کباب کوبیده', 'نوشابه'],
+        totalAmount: 65000,
+        status: 'PREPARING',
+        createdAt: '10:30',
+        customerName: 'علی احمدی'
+      },
+      {
+        id: '1248',
+        tableNumber: '8',
+        items: ['پیتزا مخصوص', 'سالاد سزار'],
+        totalAmount: 89000,
+        status: 'PENDING',
+        createdAt: '10:45',
+        customerName: 'مریم رضایی'
+      },
+      {
+        id: '1249',
+        tableNumber: '15',
+        items: ['چلو خورشت قیمه'],
+        totalAmount: 42000,
+        status: 'READY',
+        createdAt: '10:15',
+        customerName: 'محمد کریمی'
+      }
+    ]
+    setOrders(mockOrders)
+  }, [])
 
-  const getStatusColor = (status: Order['status']) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'orange'
-      case 'confirmed': return 'blue'
-      case 'preparing': return 'purple'
-      case 'ready': return 'green'
-      case 'delivered': return 'gray'
+      case 'PENDING': return 'orange'
+      case 'PREPARING': return 'blue'
+      case 'READY': return 'green'
+      case 'DELIVERED': return 'gray'
       default: return 'default'
     }
   }
 
-  const getStatusText = (status: Order['status']) => {
+  const getStatusText = (status: string) => {
     switch (status) {
-      case 'pending': return 'در انتظار'
-      case 'confirmed': return 'تأیید شده'
-      case 'preparing': return 'در حال آماده‌سازی'
-      case 'ready': return 'آماده'
-      case 'delivered': return 'تحویل داده شده'
+      case 'PENDING': return 'در انتظار'
+      case 'PREPARING': return 'در حال آماده‌سازی'
+      case 'READY': return 'آماده تحویل'
+      case 'DELIVERED': return 'تحویل شده'
       default: return status
     }
   }
 
-  const getTypeIcon = (type: Order['type']) => {
-    switch (type) {
-      case 'dine-in': return <ShopOutlined />
-      case 'takeaway': return <CarOutlined />
-      case 'delivery': return <SendOutlined />
-      default: return <UserOutlined />
-    }
-  }
-
-  const getTypeText = (type: Order['type']) => {
-    switch (type) {
-      case 'dine-in': return 'حضوری'
-      case 'takeaway': return 'بیرون بر'
-      case 'delivery': return 'ارسالی'
-      default: return type
-    }
-  }
-
-  const handleStatusChange = async (orderId: string, newStatus: Order['status']) => {
-    if (onStatusChange) {
-      await onStatusChange(orderId, newStatus)
-    } else {
-      // تغییر وضعیت سفارش
-      // در اینجا API call برای تغییر وضعیت انجام می‌شود
-    }
-  }
-
-  const columns: ColumnsType<Order> = [
-    {
-      title: 'شماره سفارش',
-      dataIndex: 'orderNumber',
-      key: 'orderNumber',
-      width: 120,
-      render: (text: string) => (
-        <Text strong style={{ color: '#1890ff' }}>{text}</Text>
+  const handleStatusChange = (orderId: string, newStatus: string) => {
+    setOrders(prev => 
+      prev.map(order => 
+        order.id === orderId 
+          ? { ...order, status: newStatus as any }
+          : order
       )
+    )
+    message.success('وضعیت سفارش به‌روزرسانی شد')
+  }
+
+  const columns = [
+    {
+      title: 'سفارش',
+      dataIndex: 'id',
+      key: 'id',
+      render: (id: string) => `#${id}`
+    },
+    {
+      title: 'میز',
+      dataIndex: 'tableNumber',
+      key: 'tableNumber',
+      render: (num: string) => `میز ${num}`
     },
     {
       title: 'مشتری',
-      key: 'customer',
-      width: 150,
-      render: (_, record) => (
-        <Space>
-          <Avatar 
-            src={record.customerAvatar} 
-            icon={<UserOutlined />}
-            size="small"
-          />
-          <Text>{record.customerName}</Text>
-        </Space>
-      )
+      dataIndex: 'customerName',
+      key: 'customerName'
     },
     {
       title: 'آیتم‌ها',
       dataIndex: 'items',
       key: 'items',
-      render: (items: string[]) => (
-        <Tooltip title={items.join('، ')}>
-          <Text ellipsis style={{ maxWidth: 200 }}>
-            {items.join('، ')}
-          </Text>
-        </Tooltip>
-      )
+      render: (items: string[]) => items.join(', ')
     },
     {
       title: 'مبلغ',
-      dataIndex: 'total',
-      key: 'total',
-      width: 120,
-      render: (total: number) => (
-        <Text strong>{total.toLocaleString('fa-IR')} تومان</Text>
-      )
-    },
-    {
-      title: 'نوع',
-      dataIndex: 'type',
-      key: 'type',
-      width: 100,
-      render: (type: Order['type']) => (
-        <Space>
-          {getTypeIcon(type)}
-          <Text>{getTypeText(type)}</Text>
-        </Space>
-      )
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
+      render: (amount: number) => `${amount.toLocaleString()} ﷼`
     },
     {
       title: 'وضعیت',
       dataIndex: 'status',
       key: 'status',
-      width: 130,
-      render: (status: Order['status']) => (
+      render: (status: string) => (
         <Tag color={getStatusColor(status)}>
           {getStatusText(status)}
         </Tag>
@@ -218,85 +125,66 @@ const ActiveOrdersTable: React.FC<ActiveOrdersTableProps> = ({
     },
     {
       title: 'زمان',
-      key: 'timing',
-      width: 100,
-      render: (_, record) => (
-        <div>
-          <Text>{record.time}</Text>
-          {record.estimatedTime && (
-            <div>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                <ClockCircleOutlined /> {record.estimatedTime} دقیقه
-              </Text>
-            </div>
-          )}
-        </div>
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (time: string) => (
+        <span>
+          <ClockCircleOutlined style={{ marginRight: 4 }} />
+          {time}
+        </span>
       )
     },
     {
       title: 'عملیات',
       key: 'actions',
-      width: 150,
-      render: (_, record) => (
+      render: (_, record: Order) => (
         <Space size="small">
-          <Tooltip title="مشاهده جزئیات">
+          <Button size="small" icon={<EyeOutlined />} />
+          {record.status === 'PENDING' && (
             <Button 
-              type="text" 
-              icon={<EyeOutlined />} 
-              size="small"
-              onClick={() => {/* مشاهده سفارش */}}
-            />
-          </Tooltip>
-          <Tooltip title="ویرایش">
+              size="small" 
+              type="primary"
+              onClick={() => handleStatusChange(record.id, 'PREPARING')}
+            >
+              شروع آماده‌سازی
+            </Button>
+          )}
+          {record.status === 'PREPARING' && (
             <Button 
-              type="text" 
-              icon={<EditOutlined />} 
-              size="small"
-              onClick={() => {/* ویرایش سفارش */}}
-            />
-          </Tooltip>
-          {record.status !== 'delivered' && (
-            <Tooltip title="تأیید مرحله بعد">
-              <Button 
-                type="text" 
-                icon={<CheckCircleOutlined />} 
-                size="small"
-                style={{ color: '#52c41a' }}
-                onClick={() => {
-                  const nextStatus = record.status === 'pending' ? 'confirmed' :
-                                   record.status === 'confirmed' ? 'preparing' :
-                                   record.status === 'preparing' ? 'ready' : 'delivered'
-                  handleStatusChange(record.id, nextStatus)
-                }}
-              />
-            </Tooltip>
+              size="small" 
+              type="primary"
+              icon={<CheckOutlined />}
+              onClick={() => handleStatusChange(record.id, 'READY')}
+            >
+              آماده است
+            </Button>
+          )}
+          {record.status === 'READY' && (
+            <Button 
+              size="small" 
+              type="default"
+              onClick={() => handleStatusChange(record.id, 'DELIVERED')}
+            >
+              تحویل شد
+            </Button>
           )}
         </Space>
       )
     }
   ]
 
-  const orders = propOrders || defaultOrders
-
   return (
-    <Table
-      columns={columns}
-      dataSource={orders}
-      rowKey="id"
-      loading={loading}
-      pagination={false}
-      size="small"
-      scroll={{ x: 1000 }}
-      style={{ 
-        backgroundColor: '#fff',
-        borderRadius: '8px'
-      }}
-      rowClassName={(record) => {
-        if (record.status === 'ready') return 'order-ready'
-        if (record.estimatedTime && record.estimatedTime < 10) return 'order-urgent'
-        return ''
-      }}
-    />
+    <Card title="سفارشات فعال" size="small">
+      <Table
+        dataSource={orders}
+        columns={columns}
+        rowKey="id"
+        loading={loading}
+        pagination={false}
+        size="small"
+        scroll={{ x: 800 }}
+      />
+    </Card>
   )
 }
 
