@@ -20,6 +20,17 @@ const jwt = require('jsonwebtoken')
 describe('/api/auth/login', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    mockFetch.mockClear()
+    
+    // Mock rate limiter to allow requests
+    jest.doMock('@/lib/rate-limiter', () => ({
+      loginRateLimiter: {
+        isAllowed: jest.fn().mockReturnValue(true),
+        getRemainingAttempts: jest.fn().mockReturnValue(5),
+        getResetTime: jest.fn().mockReturnValue(Date.now() + 300000)
+      },
+      getClientIdentifier: jest.fn().mockReturnValue('test-client')
+    }))
   })
 
   it('should return 400 for missing credentials', async () => {

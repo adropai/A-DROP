@@ -1,0 +1,134 @@
+# Docker Compose for A-DROP Restaurant Management System
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: adrop-postgres
+    environment:
+      POSTGRES_DB: adrop_db
+      POSTGRES_USER: adrop_user
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-adrop_secure_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - adrop-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adrop_user -d adrop_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: adrop-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secure_password}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - adrop-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Admin Panel
+  admin-panel:
+    build:
+      context: ./admin-panel
+      dockerfile: Dockerfile
+    container_name: adrop-admin
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://adrop_user:${DATABASE_PASSWORD:-adrop_secure_password}@postgres:5432/adrop_db
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_secure_password}@redis:6379
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-your-secret-key}
+      - NEXTAUTH_URL=http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - adrop-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Customer App (Future)
+  customer-app:
+    build:
+      context: ./customer-app
+      dockerfile: Dockerfile
+    container_name: adrop-customer
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://admin-panel:3000/api
+    ports:
+      - "3001:3000"
+    depends_on:
+      - admin-panel
+    networks:
+      - adrop-network
+    restart: unless-stopped
+    profiles:
+      - customer
+
+  # Website (Future)
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+    container_name: adrop-website
+    environment:
+      - NODE_ENV=production
+    ports:
+      - "3002:3000"
+    networks:
+      - adrop-network
+    restart: unless-stopped
+    profiles:
+      - website
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: adrop-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - admin-panel
+    networks:
+      - adrop-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  adrop-network:
+    driver: bridge
