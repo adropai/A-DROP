@@ -18,7 +18,7 @@ const PrintOrderModal: React.FC<PrintOrderModalProps> = ({ order, visible, onCan
   const printRef = useRef<HTMLDivElement>(null)
 
   const handlePrint = useReactToPrint({
-    content: () => printRef.current,
+    contentRef: printRef,
     documentTitle: `Order-${order?.orderNumber}`,
     onAfterPrint: () => {
       onCancel()

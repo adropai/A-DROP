@@ -1,7 +1,8 @@
 'use client';
-import { Card, Row, Col, Button, Table, Tag, Progress, Statistic, Tabs } from 'antd';
-import { SecurityScanOutlined, CheckOutlined, BankOutlined, AuditOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Button, Table, Tag, Progress, Statistic, Tabs, Switch, message, Modal } from 'antd';
+import { SecurityScanOutlined, CheckOutlined, BankOutlined, AuditOutlined, SafetyOutlined, MobileOutlined } from '@ant-design/icons';
 import { useSecurity } from '../../hooks/useSecurity';
+import TwoFactorSetup from '../../components/auth/TwoFactorSetup';
 import { useEffect, useState } from 'react';
 
 export default function SecurityPage() {
@@ -13,10 +14,12 @@ export default function SecurityPage() {
     executeBackup 
   } = useSecurity();
   
-  const [settings, setSettings] = useState(null);
-  const [backups, setBackups] = useState([]);
-  const [incidents, setIncidents] = useState([]);
-  const [report, setReport] = useState(null);
+  const [settings, setSettings] = useState<any>(null);
+  const [backups, setBackups] = useState<any[]>([]);
+  const [incidents, setIncidents] = useState<any[]>([]);
+  const [report, setReport] = useState<any>(null);
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -87,8 +90,44 @@ export default function SecurityPage() {
                 <Col xs={24} md={12}>
                   <Card title="سیاست رمز عبور" size="small">
                     <p>حداقل طول: {settings?.passwordPolicy?.minLength || 8} کاراکتر</p>
-                    <p>احراز هویت دو مرحله‌ای: {settings?.twoFactorAuth ? 'فعال' : 'غیرفعال'}</p>
+                    <p>پیچیدگی: متوسط</p>
                     <Progress percent={85} status="active" />
+                  </Card>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Card 
+                    title={
+                      <span>
+                        <SafetyOutlined /> احراز هویت دو مرحله‌ای
+                      </span>
+                    } 
+                    size="small"
+                    extra={
+                      <Switch
+                        checked={twoFactorEnabled}
+                        onChange={(checked) => {
+                          if (checked) {
+                            setShow2FASetup(true)
+                          } else {
+                            setTwoFactorEnabled(false)
+                            message.success('احراز هویت دو مرحله‌ای غیرفعال شد')
+                          }
+                        }}
+                      />
+                    }
+                  >
+                    <p>وضعیت: {twoFactorEnabled ? 'فعال' : 'غیرفعال'}</p>
+                    <p>روش: {twoFactorEnabled ? 'اپلیکیشن احراز هویت' : 'تنظیم نشده'}</p>
+                    {!twoFactorEnabled && (
+                      <Button 
+                        type="primary" 
+                        size="small"
+                        icon={<MobileOutlined />}
+                        onClick={() => setShow2FASetup(true)}
+                      >
+                        راه‌اندازی 2FA
+                      </Button>
+                    )}
                   </Card>
                 </Col>
                 <Col xs={24} md={12}>
@@ -131,6 +170,26 @@ export default function SecurityPage() {
           )
         }
       ]} />
+
+      <Modal
+        title="راه‌اندازی احراز هویت دو مرحله‌ای"
+        open={show2FASetup}
+        onCancel={() => setShow2FASetup(false)}
+        footer={null}
+        width={700}
+        centered
+      >
+        <TwoFactorSetup
+          userId="current-user"
+          onSetupComplete={(method, data) => {
+            console.log('2FA Setup completed:', { method, data })
+            setTwoFactorEnabled(true)
+            setShow2FASetup(false)
+            message.success(`احراز هویت دو مرحله‌ای با روش ${method} فعال شد`)
+          }}
+          onCancel={() => setShow2FASetup(false)}
+        />
+      </Modal>
     </div>
   );
 }

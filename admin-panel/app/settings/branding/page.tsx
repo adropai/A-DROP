@@ -19,7 +19,8 @@ import {
   Typography,
   Alert,
   Tooltip,
-  Badge
+  Badge,
+  Spin
 } from 'antd'
 import { 
   ProCard, 
@@ -85,12 +86,13 @@ interface SocialMediaPlatform {
 export default function BrandingPage() {
   const [currentTab, setCurrentTab] = useState('basic')
   const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
   
-  // State for different settings
+  // State for different settings - با مقادیر پیش‌فرض
   const [brandingSettings, setBrandingSettings] = useState<BrandingSettings>({
-    restaurantName: '',
-    description: '',
+    restaurantName: 'رستوران نمونه',
+    description: 'بهترین رستوران شهر',
     logo: '',
     favicon: '',
     primaryColor: '#1890ff',
@@ -146,12 +148,66 @@ export default function BrandingPage() {
     }
   ])
 
+  // Initialize social media platforms (no longer needed as we init in state)
+  /*
+  useEffect(() => {
+    setSocialMediaPlatforms([
+      {
+        id: '1',
+        name: 'اینستاگرام',
+        platform: 'instagram',
+        url: '',
+        isActive: false,
+        displayOrder: 1,
+        icon: '📷'
+      },
+      {
+        id: '2', 
+        name: 'تلگرام',
+        platform: 'telegram',
+        url: '',
+        isActive: false,
+        displayOrder: 2,
+        icon: '✈️'
+      },
+      {
+        id: '3',
+        name: 'واتساپ',
+        platform: 'whatsapp', 
+        url: '',
+        isActive: false,
+        displayOrder: 3,
+        icon: '📱'
+      },
+      {
+        id: '4',
+        name: 'فیسبوک',
+        platform: 'facebook',
+        url: '',
+        isActive: false,
+        displayOrder: 4,
+        icon: '👥'
+      }
+    ])
+  }, [])
+  */
+
   // Load settings on component mount
   useEffect(() => {
+    setMounted(true)
     loadBrandingSettings()
     loadDomainSettings()
     loadSocialMediaSettings()
   }, [])
+
+  // Don't render until mounted (prevents SSR issues)
+  if (!mounted) {
+    return (
+      <div style={{ padding: '24px', textAlign: 'center' }}>
+        <Spin size="large" />
+      </div>
+    )
+  }
 
   const loadBrandingSettings = async () => {
     try {
@@ -259,6 +315,7 @@ export default function BrandingPage() {
   }
 
   const updateSocialMediaPlatform = (id: string, updates: Partial<SocialMediaPlatform>) => {
+    if (!Array.isArray(socialMediaPlatforms) || !socialMediaPlatforms) return
     const updatedPlatforms = socialMediaPlatforms.map(platform =>
       platform.id === id ? { ...platform, ...updates } : platform
     )
@@ -266,6 +323,7 @@ export default function BrandingPage() {
   }
 
   const addCustomSocialPlatform = () => {
+    if (!Array.isArray(socialMediaPlatforms)) return
     const newPlatform: SocialMediaPlatform = {
       id: String(Date.now()),
       name: 'پلتفرم سفارشی',
@@ -279,6 +337,7 @@ export default function BrandingPage() {
   }
 
   const removeSocialPlatform = (id: string) => {
+    if (!Array.isArray(socialMediaPlatforms)) return
     setSocialMediaPlatforms(socialMediaPlatforms.filter(p => p.id !== id))
   }
 
@@ -300,7 +359,7 @@ export default function BrandingPage() {
             >
               پیش‌نمایش
             </Button>
-            <Badge count={socialMediaPlatforms.filter(p => p.isActive).length}>
+            <Badge count={socialMediaPlatforms && Array.isArray(socialMediaPlatforms) ? socialMediaPlatforms.filter(p => p?.isActive).length : 0}>
               <Button icon={<CheckCircleOutlined />}>
                 فعال
               </Button>
@@ -493,7 +552,7 @@ export default function BrandingPage() {
             </div>
 
             <Row gutter={16}>
-              {socialMediaPlatforms.map((platform) => (
+              {socialMediaPlatforms && Array.isArray(socialMediaPlatforms) && socialMediaPlatforms.length > 0 ? socialMediaPlatforms.map((platform) => (
                 <Col span={12} key={platform.id} style={{ marginBottom: '16px' }}>
                   <Card 
                     size="small"
@@ -566,7 +625,11 @@ export default function BrandingPage() {
                     </Form>
                   </Card>
                 </Col>
-              ))}
+              )) : (
+                <Col span={24}>
+                  <Alert message="در حال بارگذاری..." type="info" />
+                </Col>
+              )}
             </Row>
 
             <div style={{ textAlign: 'center', marginTop: '24px' }}>
@@ -690,7 +753,8 @@ export default function BrandingPage() {
             
             <div style={{ marginTop: '16px' }}>
               <Space>
-                {socialMediaPlatforms.filter(p => p.isActive && p.url).map(platform => (
+                {socialMediaPlatforms && Array.isArray(socialMediaPlatforms) && socialMediaPlatforms.length > 0 ? 
+                  socialMediaPlatforms.filter(p => p?.isActive && p?.url).map(platform => (
                   <Button 
                     key={platform.id}
                     style={{ 
@@ -702,7 +766,7 @@ export default function BrandingPage() {
                   >
                     {platform.icon} {platform.customLabel || platform.name}
                   </Button>
-                ))}
+                )) : null}
               </Space>
             </div>
           </div>
@@ -711,3 +775,6 @@ export default function BrandingPage() {
     </div>
   )
 }
+
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic'

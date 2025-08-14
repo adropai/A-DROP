@@ -1,16 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
-  swcMinify: true, // Re-enable SWC for better performance
+  swcMinify: true, 
   experimental: {
     // Turbopack optimizations only
     turbo: {
-      loaders: {
-        '.svg': ['@svgr/webpack'],
+      rules: {
+        '*.svg': ['@svgr/webpack'],
       },
     },
     // Disable automatic file generation
-    optimizePackageImports: false,
+    optimizePackageImports: [],
     // Disable filesystem optimizations that might create files
     optimizeServerReact: false,
   },

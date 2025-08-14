@@ -6,6 +6,7 @@ import {
   Descriptions, Select, Divider, Input, DatePicker, Switch, Badge, Tooltip, 
   Alert, Progress, Timeline, Steps, notification, Popconfirm, Drawer
 } from 'antd'
+import type { Dayjs } from 'dayjs'
 import { 
   ShoppingCartOutlined, UserOutlined, ClockCircleOutlined, CheckCircleOutlined, 
   EyeOutlined, EditOutlined, PlusOutlined, PrinterOutlined, ReloadOutlined,
@@ -26,6 +27,15 @@ const { Step } = Steps
 
 interface OrderItem {
   id: string;
+  menuId: string; // ارتباط با Menu
+  menuItem?: { // اطلاعات آیتم منو
+    id: string;
+    name: string;
+    category: string;
+    price: number;
+    image?: string;
+    preparationTime?: number;
+  };
   name: string;
   quantity: number;
   price: number;
@@ -529,7 +539,7 @@ export default function OrdersPage() {
               style={{ width: '100%' }}
               placeholder={['از تاریخ', 'تا تاریخ']}
               value={dateRange}
-              onChange={setDateRange}
+              onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null])}
             />
           </Col>
           <Col xs={24} sm={12} md={4}>

@@ -57,7 +57,7 @@ const UpdateOrderStatus: React.FC<UpdateOrderStatusProps> = ({ order, visible, o
   }
 
   const getAvailableStatuses = (currentStatus: string) => {
-    const statusFlow = {
+    const statusFlow: Record<string, string[]> = {
       'pending': ['confirmed', 'cancelled'],
       'confirmed': ['preparing', 'cancelled'],
       'preparing': ['ready', 'cancelled'],
@@ -67,7 +67,7 @@ const UpdateOrderStatus: React.FC<UpdateOrderStatusProps> = ({ order, visible, o
       'cancelled': []
     }
 
-    return statusFlow[currentStatus as keyof typeof statusFlow] || []
+    return statusFlow[currentStatus] || []
   }
 
   const availableStatuses = getAvailableStatuses(order?.status || 'pending')
