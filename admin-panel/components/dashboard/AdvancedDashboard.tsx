@@ -247,7 +247,7 @@ const AdvancedDashboard: React.FC<AdvancedDashboardProps> = ({ className }) => {
           </Card>
         </Col>
         <Col xs={24} lg={8}>
-          <Card title="غذاهای پرفروش" bodyStyle={{ padding: '12px' }}>
+          <Card title="غذاهای پرفروش" styles={{ body: { padding: '12px' } }}>
             {mockData.popularItems.slice(0, 5).map((item, index) => (
               <div key={item.id} style={{ 
                 display: 'flex', 

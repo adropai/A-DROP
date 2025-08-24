@@ -3,26 +3,21 @@
 import { useState, useEffect, useRef } from 'react'
 import { 
   Card, Table, Tag, Space, Typography, Row, Col, Statistic, Button, message, Modal, 
-  Descriptions, Select, Divider, Input, DatePicker, Switch, Badge, Tooltip, 
-  Alert, Progress, Timeline, Steps, notification, Popconfirm, Drawer
+  Descriptions, Divider, Switch, Badge, Tooltip, 
+  Alert, Progress, Timeline, Steps, notification, Popconfirm, Drawer, Tabs
 } from 'antd'
-import type { Dayjs } from 'dayjs'
 import { 
   ShoppingCartOutlined, UserOutlined, ClockCircleOutlined, CheckCircleOutlined, 
   EyeOutlined, EditOutlined, PlusOutlined, PrinterOutlined, ReloadOutlined,
-  SearchOutlined, FilterOutlined, ExportOutlined, PhoneOutlined, 
-  EnvironmentOutlined, DollarOutlined, FireOutlined, CarOutlined
+  PhoneOutlined, EnvironmentOutlined, DollarOutlined, FireOutlined, CarOutlined
 } from '@ant-design/icons'
 import CreateOrderForm from '@/components/orders/CreateOrderForm'
 import OrderDetailsModal from '@/components/orders/OrderDetailsModal'
-import UpdateOrderStatus from '@/components/orders/UpdateOrderStatus'
 import OrderStats from '@/components/orders/OrderStats'
 import PrintOrderModal from '@/components/orders/PrintOrderModal'
 import dayjs from 'dayjs'
 
 const { Title, Text } = Typography
-const { Option } = Select
-const { RangePicker } = DatePicker
 const { Step } = Steps
 
 interface OrderItem {
@@ -47,6 +42,7 @@ interface Order {
   id: string;
   orderNumber: string;
   customer: { 
+    id?: string;
     name: string; 
     phone: string; 
     address?: string;
@@ -76,24 +72,57 @@ interface Order {
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
+  const [activeStatusFilter, setActiveStatusFilter] = useState<string>('ALL')
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isViewModalVisible, setIsViewModalVisible] = useState(false)
-  const [isStatusModalVisible, setIsStatusModalVisible] = useState(false)
   const [isCreateOrderVisible, setIsCreateOrderVisible] = useState(false)
   const [isPrintModalVisible, setIsPrintModalVisible] = useState(false)
-  const [newStatus, setNewStatus] = useState<string>('')
-  const [searchText, setSearchText] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [typeFilter, setTypeFilter] = useState('all')
-  const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null]>([null, null])
   const [realTimeUpdates, setRealTimeUpdates] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   
   const printRef = useRef<HTMLDivElement>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Helper function to check permissions
+  const hasPermission = (permission: string): boolean => {
+    if (!currentUser) return false
+    if (currentUser.role === 'SUPER_ADMIN' || currentUser.permissions.includes('*')) return true
+    return currentUser.permissions.includes(permission)
+  }
+
+  const fetchCurrentUser = async () => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        console.log('No auth token found')
+        return
+      }
+
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (response.ok) {
+        const userData = await response.json()
+        setCurrentUser(userData.user)
+      } else if (response.status === 401) {
+        console.log('Token expired or invalid')
+        // Token is invalid, redirect to login
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('user_data')
+        window.location.href = '/auth/login'
+      }
+    } catch (error) {
+      console.error('Error fetching current user:', error)
+    }
+  }
+
   useEffect(() => {
+    fetchCurrentUser()
     fetchOrders()
     
     // Auto refresh every 30 seconds if enabled
@@ -111,48 +140,30 @@ export default function OrdersPage() {
   }, [autoRefresh])
 
   useEffect(() => {
-    filterOrders()
-  }, [orders, searchText, statusFilter, typeFilter, dateRange])
-
-  const filterOrders = () => {
-    let filtered = [...orders]
-
-    // Search filter
-    if (searchText) {
-      filtered = filtered.filter(order =>
-        order.orderNumber.toLowerCase().includes(searchText.toLowerCase()) ||
-        order.customer.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        order.customer.phone.includes(searchText)
-      )
+    if (activeStatusFilter === 'ALL') {
+      setFilteredOrders(orders)
+    } else {
+      setFilteredOrders(orders.filter(order => order.status === activeStatusFilter))
     }
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(order => order.status === statusFilter)
-    }
-
-    // Type filter
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter(order => order.type === typeFilter)
-    }
-
-    // Date range filter
-    if (dateRange && dateRange.length === 2) {
-      filtered = filtered.filter(order => {
-        const orderDate = dayjs(order.createdAt)
-        return orderDate.isAfter(dateRange[0]) && orderDate.isBefore(dateRange[1])
-      })
-    }
-
-    setFilteredOrders(filtered)
-  }
+  }, [orders, activeStatusFilter])
 
   const fetchOrders = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/orders')
+      // Strong cache busting
+      const timestamp = new Date().getTime()
+      const random = Math.random().toString(36).substring(7)
+      const response = await fetch(`/api/orders?t=${timestamp}&r=${random}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      })
       const data = await response.json()
       console.log('📦 Orders data received:', data)
+      console.log('📊 Orders count received:', data.orders?.length || 0)
       
       if (data.orders && Array.isArray(data.orders)) {
         // Show notification for new orders if real-time updates enabled
@@ -176,32 +187,6 @@ export default function OrdersPage() {
     }
   }
 
-  const updateOrderStatus = async (orderId: string, status: string) => {
-    try {
-      const response = await fetch(`/api/orders/${orderId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, updatedAt: new Date() })
-      })
-
-      if (response.ok) {
-        await fetchOrders()
-        message.success('وضعیت سفارش بروزرسانی شد')
-        setIsStatusModalVisible(false)
-
-        // Send to kitchen if status is preparing
-        if (status === 'Preparing') {
-          await sendToKitchen(orderId)
-        }
-      } else {
-        message.error('خطا در بروزرسانی وضعیت')
-      }
-    } catch (error) {
-      console.error('Error updating order status:', error)
-      message.error('خطا در بروزرسانی وضعیت')
-    }
-  }
-
   const sendToKitchen = async (orderId: string) => {
     try {
       await fetch('/api/kitchen/orders', {
@@ -222,10 +207,12 @@ export default function OrdersPage() {
       })
 
       if (response.ok) {
+        const result = await response.json()
         await fetchOrders()
-        message.success('سفارش حذف شد')
+        message.success(result.message || 'سفارش حذف شد')
       } else {
-        message.error('خطا در حذف سفارش')
+        const error = await response.json()
+        message.error(error.error || 'خطا در حذف سفارش')
       }
     } catch (error) {
       console.error('Error deleting order:', error)
@@ -233,9 +220,17 @@ export default function OrdersPage() {
     }
   }
 
-  const handleCreateOrderSuccess = () => {
+  const handleCreateOrderSuccess = async () => {
     setIsCreateOrderVisible(false)
-    fetchOrders()
+    // Force refresh the orders list
+    setLoading(true)
+    
+    // Clear current orders state first
+    setOrders([])
+    setFilteredOrders([])
+    
+    await fetchOrders()
+    message.success('سفارش جدید با موفقیت اضافه شد')
   }
 
   const getStatusColor = (status: string) => {
@@ -280,10 +275,10 @@ export default function OrdersPage() {
   const orderStats = {
     totalOrders: filteredOrders.length,
     todayOrders: filteredOrders.filter(o => dayjs(o.createdAt).isSame(dayjs(), 'day')).length,
-    pendingOrders: filteredOrders.filter(o => o.status === 'pending').length,
-    preparingOrders: filteredOrders.filter(o => o.status === 'preparing').length,
-    readyOrders: filteredOrders.filter(o => o.status === 'ready').length,
-    completedOrders: filteredOrders.filter(o => o.status === 'completed').length,
+    pendingOrders: filteredOrders.filter(o => o.status === 'PENDING').length,
+    preparingOrders: filteredOrders.filter(o => o.status === 'PREPARING').length,
+    readyOrders: filteredOrders.filter(o => o.status === 'READY').length,
+    completedOrders: filteredOrders.filter(o => o.status === 'COMPLETED').length,
     totalRevenue: filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0),
     todayRevenue: filteredOrders
       .filter(o => dayjs(o.createdAt).isSame(dayjs(), 'day'))
@@ -291,7 +286,7 @@ export default function OrdersPage() {
     averageOrderValue: filteredOrders.length > 0 ? 
       filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0) / filteredOrders.length : 0,
     completionRate: filteredOrders.length > 0 ? 
-      (filteredOrders.filter(o => o.status === 'completed').length / filteredOrders.length) * 100 : 0
+      (filteredOrders.filter(o => o.status === 'COMPLETED').length / filteredOrders.length) * 100 : 0
   }
 
   const columns = [
@@ -409,18 +404,6 @@ export default function OrdersPage() {
           </Button>
           <Button 
             type="link" 
-            icon={<EditOutlined />} 
-            onClick={() => {
-              setSelectedOrder(record)
-              setNewStatus(record.status)
-              setIsStatusModalVisible(true)
-            }}
-            size="small"
-          >
-            تغییر وضعیت
-          </Button>
-          <Button 
-            type="link" 
             icon={<PrinterOutlined />} 
             onClick={() => {
               setSelectedOrder(record)
@@ -430,20 +413,24 @@ export default function OrdersPage() {
           >
             پرینت
           </Button>
-          <Popconfirm
-            title="آیا مطمئن هستید؟"
-            onConfirm={() => deleteOrder(record.id)}
-            okText="بله"
-            cancelText="خیر"
-          >
-            <Button 
-              type="link" 
-              danger 
-              size="small"
+          {/* فقط مدیران می‌توانند سفارش حذف کنند */}
+          {hasPermission('orders.delete') && (
+            <Popconfirm
+              title="آیا مطمئن هستید؟"
+              description="این عمل قابل بازگشت نیست"
+              onConfirm={() => deleteOrder(record.id)}
+              okText="بله"
+              cancelText="خیر"
             >
-              حذف
-            </Button>
-          </Popconfirm>
+              <Button 
+                type="link" 
+                danger 
+                size="small"
+              >
+                حذف
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       )
     }
@@ -493,85 +480,16 @@ export default function OrdersPage() {
       {/* Order Statistics */}
       <OrderStats stats={orderStats} />
 
-      {/* Filters */}
-      <Card style={{ marginBottom: 24 }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} md={6}>
-            <Input
-              placeholder="جستجو (شماره، نام، تلفن)"
-              prefix={<SearchOutlined />}
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={4}>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="وضعیت"
-              value={statusFilter}
-              onChange={setStatusFilter}
-            >
-              <Option value="all">همه وضعیت‌ها</Option>
-              <Option value="New">جدید</Option>
-              <Option value="Confirmed">تایید شده</Option>
-              <Option value="Preparing">در حال آماده‌سازی</Option>
-              <Option value="Ready">آماده</Option>
-              <Option value="OutForDelivery">در حال تحویل</Option>
-              <Option value="Delivered">تحویل شده</Option>
-              <Option value="Cancelled">لغو شده</Option>
-            </Select>
-          </Col>
-          <Col xs={24} sm={12} md={4}>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="نوع سفارش"
-              value={typeFilter}
-              onChange={setTypeFilter}
-            >
-              <Option value="all">همه انواع</Option>
-              <Option value="dine-in">حضوری</Option>
-              <Option value="takeaway">بیرون‌بر</Option>
-              <Option value="delivery">ارسالی</Option>
-            </Select>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <RangePicker
-              style={{ width: '100%' }}
-              placeholder={['از تاریخ', 'تا تاریخ']}
-              value={dateRange}
-              onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null])}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={4}>
-            <Button
-              icon={<ExportOutlined />}
-              onClick={() => {
-                const csvData = filteredOrders.map(order => ({
-                  'شماره سفارش': order.orderNumber,
-                  'مشتری': order.customer.name,
-                  'تلفن': order.customer.phone,
-                  'نوع': order.type,
-                  'وضعیت': getStatusText(order.status),
-                  'مبلغ': order.totalAmount,
-                  'تاریخ': dayjs(order.createdAt).format('YYYY/MM/DD HH:mm')
-                }))
-                
-                const csvContent = Object.keys(csvData[0]).join(',') + '\n' +
-                  csvData.map(row => Object.values(row).join(',')).join('\n')
-                
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-                const link = document.createElement('a')
-                link.href = URL.createObjectURL(blob)
-                link.download = `orders-${dayjs().format('YYYY-MM-DD')}.csv`
-                link.click()
-              }}
-              style={{ width: '100%' }}
-            >
-              خروجی Excel
-            </Button>
-          </Col>
-        </Row>
-      </Card>
+      {/* Role-based Access Alert */}
+      {currentUser && !hasPermission('orders.delete') && (
+        <Alert
+          message={`دسترسی محدود - ${currentUser.role === 'CHEF' ? 'سرآشپز' : currentUser.role === 'CASHIER' ? 'صندوقدار' : currentUser.role === 'WAITER' ? 'کاپیتان' : currentUser.role}`}
+          description="شما فقط اجازه مشاهده و چاپ سفارشات را دارید. برای تغییر وضعیت سفارش، از قسمت آشپزخانه استفاده کنید."
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       {/* Real-time Alert */}
       {realTimeUpdates && (
@@ -584,6 +502,44 @@ export default function OrdersPage() {
           style={{ marginBottom: 16 }}
         />
       )}
+
+      {/* Status Filter Tabs */}
+      <Card style={{ marginBottom: 16 }}>
+        <Tabs
+          activeKey={activeStatusFilter}
+          onChange={setActiveStatusFilter}
+          items={[
+            {
+              key: 'ALL',
+              label: `همه (${orders.length})`,
+            },
+            {
+              key: 'PENDING',
+              label: `در انتظار (${orders.filter(o => o.status === 'PENDING').length})`,
+            },
+            {
+              key: 'CONFIRMED',
+              label: `تایید شده (${orders.filter(o => o.status === 'CONFIRMED').length})`,
+            },
+            {
+              key: 'PREPARING',
+              label: `در حال آماده‌سازی (${orders.filter(o => o.status === 'PREPARING').length})`,
+            },
+            {
+              key: 'READY',
+              label: `آماده (${orders.filter(o => o.status === 'READY').length})`,
+            },
+            {
+              key: 'COMPLETED',
+              label: `تحویل شده (${orders.filter(o => o.status === 'COMPLETED').length})`,
+            },
+            {
+              key: 'CANCELLED',
+              label: `لغو شده (${orders.filter(o => o.status === 'CANCELLED').length})`,
+            }
+          ]}
+        />
+      </Card>
 
       {/* Orders Table */}
       <Card>
@@ -751,39 +707,6 @@ export default function OrdersPage() {
         )}
       </Modal>
 
-      {/* Status Update Modal */}
-      <Modal
-        title="تغییر وضعیت سفارش"
-        open={isStatusModalVisible}
-        onOk={() => {
-          if (selectedOrder && newStatus) {
-            updateOrderStatus(selectedOrder.id, newStatus)
-          }
-        }}
-        onCancel={() => setIsStatusModalVisible(false)}
-        okText="بروزرسانی"
-        cancelText="انصراف"
-      >
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Text>سفارش: {selectedOrder?.orderNumber}</Text>
-          <Text>وضعیت فعلی: {selectedOrder && getStatusText(selectedOrder.status)}</Text>
-          <Select
-            style={{ width: '100%' }}
-            placeholder="وضعیت جدید را انتخاب کنید"
-            value={newStatus}
-            onChange={setNewStatus}
-          >
-            <Option value="New">جدید</Option>
-            <Option value="Confirmed">تایید شده</Option>
-            <Option value="Preparing">در حال آماده‌سازی</Option>
-            <Option value="Ready">آماده تحویل</Option>
-            <Option value="OutForDelivery">در حال تحویل</Option>
-            <Option value="Delivered">تحویل شده</Option>
-            <Option value="Cancelled">لغو شده</Option>
-          </Select>
-        </Space>
-      </Modal>
-
       {/* Print Modal */}
       <Modal
         title="پرینت فاکتور"
@@ -902,6 +825,7 @@ export default function OrdersPage() {
         <CreateOrderForm
           onCancel={() => setIsCreateOrderVisible(false)}
           onSuccess={handleCreateOrderSuccess}
+          orderSource="orders"
         />
       )}
 
@@ -917,23 +841,6 @@ export default function OrdersPage() {
           onPrint={(orderId) => {
             setIsViewModalVisible(false)
             setIsPrintModalVisible(true)
-          }}
-        />
-      )}
-
-      {/* Update Status Modal */}
-      {selectedOrder && (
-        <UpdateOrderStatus
-          order={selectedOrder}
-          visible={isStatusModalVisible}
-          onCancel={() => {
-            setIsStatusModalVisible(false)
-            setSelectedOrder(null)
-          }}
-          onSuccess={() => {
-            setIsStatusModalVisible(false)
-            setSelectedOrder(null)
-            fetchOrders()
           }}
         />
       )}

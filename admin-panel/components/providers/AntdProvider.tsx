@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ConfigProvider, theme } from 'antd'
+import { ConfigProvider, theme, App } from 'antd'
 import faIR from 'antd/lib/locale/fa_IR'
 
 const AntdProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -19,7 +19,9 @@ const AntdProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         algorithm: theme.defaultAlgorithm
       }}
     >
-      {children}
+      <App>
+        {children}
+      </App>
     </ConfigProvider>
   )
 }

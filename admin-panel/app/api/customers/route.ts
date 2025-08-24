@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '../../../lib/prisma';
 
 // GET /api/customers - دریافت لیست مشتریان
 export async function GET(request: NextRequest) {
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: customersWithStats,
+      customers: customersWithStats,
       pagination: {
         total,
         page,
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      data: fallbackCustomers,
+      customers: fallbackCustomers,
       pagination: {
         total: fallbackCustomers.length,
         page: 1,
@@ -132,15 +132,30 @@ export async function POST(request: NextRequest) {
       status = 'Active',
       avatar,
       tags = [],
-      notes
+      notes,
+      addresses = [],
+      preferences = {},
+      loyaltyPoints = 0
     } = body;
 
-    console.log('🔹 Creating customer with data:', { name, email, phone, tier, status, tags });
+    console.log('🔹 Creating customer with data:', { name, email, phone, tier, status, tags, addresses: addresses.length });
 
     // بررسی اعتبار داده‌های اصلی
     if (!name || !phone) {
       return NextResponse.json(
         { success: false, error: 'نام و شماره تلفن الزامی است' },
+        { status: 400 }
+      );
+    }
+
+    // بررسی تکراری نبودن شماره تلفن
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { phone }
+    });
+
+    if (existingCustomer) {
+      return NextResponse.json(
+        { success: false, error: 'مشتری با این شماره تلفن قبلاً ثبت شده است' },
         { status: 400 }
       );
     }
@@ -152,15 +167,49 @@ export async function POST(request: NextRequest) {
         email,
         phone,
         avatar,
-        dateOfBirth,
+        dateOfBirth: dateOfBirth ? String(dateOfBirth) : null, // تبدیل به string
         gender,
         tier,
         status,
+        // ایجاد برچسب‌ها
         tags: {
           create: (tags || []).map((tagName: string) => ({
             name: tagName,
           })),
         },
+        // ایجاد آدرس‌ها
+        addresses: {
+          create: addresses.filter((addr: any) => addr.address.trim() !== '').map((addr: any) => ({
+            title: addr.title || 'آدرس',
+            address: addr.address,
+            city: addr.city || '',
+            district: addr.district || '',
+            postalCode: addr.postalCode || '',
+            isDefault: addr.isDefault || false
+          }))
+        },
+        // ایجاد ترجیحات
+        preferences: preferences && (preferences.allergies || preferences.dietaryRestrictions || preferences.preferredPaymentMethod || preferences.deliveryInstructions) ? {
+          create: {
+            favoriteItems: JSON.stringify(preferences.favoriteItems || []),
+            allergies: JSON.stringify(preferences.allergies || []),
+            dietaryRestrictions: Array.isArray(preferences.dietaryRestrictions) 
+              ? preferences.dietaryRestrictions.join(', ') 
+              : (preferences.dietaryRestrictions || ''),
+            preferredPaymentMethod: preferences.preferredPaymentMethod || null,
+            deliveryInstructions: preferences.deliveryInstructions || null
+          }
+        } : undefined,
+        // ایجاد آمار اولیه
+        stats: {
+          create: {
+            totalOrders: 0,
+            totalSpent: 0,
+            averageOrderValue: 0,
+            loyaltyPoints: loyaltyPoints || 0,
+            lifetimeValue: 0
+          }
+        }
       },
       include: {
         tags: true,
@@ -174,13 +223,18 @@ export async function POST(request: NextRequest) {
     const customerWithTags = {
       ...newCustomer,
       tags: newCustomer.tags.map(tag => tag.name),
+      preferences: newCustomer.preferences ? {
+        ...newCustomer.preferences,
+        favoriteItems: JSON.parse(newCustomer.preferences.favoriteItems || '[]'),
+        allergies: JSON.parse(newCustomer.preferences.allergies || '[]')
+      } : null
     };
 
     console.log('🔹 Customer created successfully:', customerWithTags.id);
 
     return NextResponse.json({
       success: true,
-      data: customerWithTags,
+      customer: customerWithTags,
       message: 'مشتری جدید با موفقیت اضافه شد',
     });
   } catch (error) {

@@ -2,235 +2,257 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-async function seedMenuData() {
-  console.log('🌱 Seeding menu data...')
-
-  // Create categories
-  const appetizers = await prisma.category.create({
+async function main() {
+  console.log('🧹 پاک‌سازی دیتابیس...')
+  
+  // پاک کردن تمام داده‌های موجود
+  await prisma.menuItem.deleteMany()
+  await prisma.category.deleteMany()
+  
+  console.log('📂 ایجاد دسته‌بندی‌ها...')
+  
+  // ایجاد دسته‌بندی‌های اصلی
+  const restaurant = await prisma.category.create({
     data: {
-      name: 'پیش غذا',
-      nameEn: 'Appetizers',
-      nameAr: 'المقبلات',
-      description: 'انواع پیش غذاهای خوشمزه',
-      priority: 1,
+      name: 'رستوران',
+      nameEn: 'Restaurant',
+      description: 'دسته‌بندی اصلی رستوران',
+      priority: 10,
       isActive: true
     }
   })
 
-  const mainCourses = await prisma.category.create({
+  const fastFood = await prisma.category.create({
     data: {
-      name: 'غذای اصلی',
-      nameEn: 'Main Courses',
-      nameAr: 'الأطباق الرئيسية',
-      description: 'غذاهای اصلی و سیركننده',
-      priority: 2,
+      name: 'فست فود',
+      nameEn: 'Fast Food',
+      description: 'دسته‌بندی فست فود',
+      priority: 9,
       isActive: true
     }
   })
 
-  const desserts = await prisma.category.create({
+  // زیردسته‌بندی‌های رستوران
+  const breakfast = await prisma.category.create({
     data: {
-      name: 'دسر',
-      nameEn: 'Desserts',
-      nameAr: 'الحلويات',
-      description: 'انواع دسرهای خوشمزه',
-      priority: 3,
+      name: 'صبحانه',
+      nameEn: 'Breakfast',
+      description: 'انواع صبحانه',
+      parentId: restaurant.id,
+      priority: 8,
       isActive: true
     }
   })
 
-  const beverages = await prisma.category.create({
+  const lunch = await prisma.category.create({
     data: {
-      name: 'نوشیدنی',
-      nameEn: 'Beverages',
-      nameAr: 'المشروبات',
-      description: 'انواع نوشیدنی‌های گرم و سرد',
+      name: 'ناهار',
+      nameEn: 'Lunch',
+      description: 'انواع ناهار',
+      parentId: restaurant.id,
+      priority: 7,
+      isActive: true
+    }
+  })
+
+  const dinner = await prisma.category.create({
+    data: {
+      name: 'شام',
+      nameEn: 'Dinner',
+      description: 'انواع شام',
+      parentId: restaurant.id,
+      priority: 6,
+      isActive: true
+    }
+  })
+
+  // زیردسته‌بندی‌های صبحانه
+  const iranianBreakfast = await prisma.category.create({
+    data: {
+      name: 'صبحانه ایرانی',
+      nameEn: 'Iranian Breakfast',
+      description: 'انواع صبحانه ایرانی',
+      parentId: breakfast.id,
+      priority: 5,
+      isActive: true
+    }
+  })
+
+  const continentalBreakfast = await prisma.category.create({
+    data: {
+      name: 'صبحانه فرنگی',
+      nameEn: 'Continental Breakfast',
+      description: 'انواع صبحانه فرنگی',
+      parentId: breakfast.id,
       priority: 4,
       isActive: true
     }
   })
 
-  // Create menu items
-  const menuItems = [
-    // Appetizers
-    {
-      name: 'کاسه سوپ جو',
-      nameEn: 'Barley Soup',
-      description: 'سوپ گرم و مغذی با جو و سبزیجات',
-      categoryId: appetizers.id,
+  // زیردسته‌بندی‌های ناهار
+  const iranianFood = await prisma.category.create({
+    data: {
+      name: 'غذای ایرانی',
+      nameEn: 'Iranian Food',
+      description: 'انواع غذای ایرانی',
+      parentId: lunch.id,
+      priority: 3,
+      isActive: true
+    }
+  })
+
+  const internationalFood = await prisma.category.create({
+    data: {
+      name: 'غذای بین‌المللی',
+      nameEn: 'International Food',
+      description: 'انواع غذای بین‌المللی',
+      parentId: lunch.id,
+      priority: 2,
+      isActive: true
+    }
+  })
+
+  // زیردسته‌بندی‌های فست فود
+  const burgers = await prisma.category.create({
+    data: {
+      name: 'برگر',
+      nameEn: 'Burgers',
+      description: 'انواع برگر',
+      parentId: fastFood.id,
+      priority: 1,
+      isActive: true
+    }
+  })
+
+  const pizza = await prisma.category.create({
+    data: {
+      name: 'پیتزا',
+      nameEn: 'Pizza',
+      description: 'انواع پیتزا',
+      parentId: fastFood.id,
+      priority: 1,
+      isActive: true
+    }
+  })
+
+  console.log('🍽️ ایجاد نمونه آیتم‌های منو...')
+
+  // نمونه آیتم‌های منو
+  await prisma.menuItem.create({
+    data: {
+      name: 'املت ایرانی',
+      nameEn: 'Persian Omelet',
+      description: 'املت با سبزیجات ایرانی',
+      categoryId: iranianBreakfast.id,
       price: 45000,
       preparationTime: 15,
-      calories: 180,
       isAvailable: true,
       isSpecial: false,
-      priority: 1,
-      images: JSON.stringify(['/placeholder-food.jpg']),
-      ingredients: JSON.stringify(['جو', 'هویج', 'سلری', 'پیاز']),
-      allergens: JSON.stringify(['گلوتن'])
-    },
-    {
-      name: 'سالاد سزار',
-      nameEn: 'Caesar Salad',
-      description: 'سالاد تازه با سس سزار و پارمزان',
-      categoryId: appetizers.id,
-      price: 65000,
-      preparationTime: 10,
-      calories: 220,
-      isAvailable: true,
-      isSpecial: true,
-      priority: 2,
-      images: JSON.stringify(['/placeholder-food.jpg']),
-      ingredients: JSON.stringify(['کاهو', 'پنیر پارمزان', 'نان تست', 'سس سزار']),
-      allergens: JSON.stringify(['لبنیات', 'گلوتن'])
-    },
+      priority: 1
+    }
+  })
 
-    // Main Courses
-    {
-      name: 'کباب کوبیده',
-      nameEn: 'Koobideh Kebab',
-      description: 'کباب کوبیده سنتی با برنج زعفرانی',
-      categoryId: mainCourses.id,
-      price: 220000,
-      discountPrice: 190000,
-      preparationTime: 25,
-      calories: 450,
+  await prisma.menuItem.create({
+    data: {
+      name: 'کشک و بادمجان',
+      nameEn: 'Kashk Bademjan',
+      description: 'بادمجان سرخ شده با کشک',
+      categoryId: iranianBreakfast.id,
+      price: 65000,
+      preparationTime: 20,
       isAvailable: true,
       isSpecial: true,
-      priority: 1,
-      images: JSON.stringify(['/placeholder-food.jpg']),
-      ingredients: JSON.stringify(['گوشت گاو', 'برنج', 'زعفران', 'پیاز']),
-      allergens: JSON.stringify([])
-    },
-    {
-      name: 'پیتزا مارگاریتا',
-      nameEn: 'Margherita Pizza',
-      description: 'پیتزا کلاسیک با گوجه و موزارلا',
-      categoryId: mainCourses.id,
-      price: 185000,
-      preparationTime: 20,
-      calories: 320,
+      priority: 2
+    }
+  })
+
+  await prisma.menuItem.create({
+    data: {
+      name: 'املت فرانسوی',
+      nameEn: 'French Omelet',
+      description: 'املت کلاسیک فرانسوی',
+      categoryId: continentalBreakfast.id,
+      price: 55000,
+      preparationTime: 12,
       isAvailable: true,
       isSpecial: false,
-      priority: 2,
-      images: JSON.stringify(['/placeholder-food.jpg']),
-      ingredients: JSON.stringify(['خمیر پیتزا', 'سس گوجه', 'پنیر موزارلا', 'ریحان']),
-      allergens: JSON.stringify(['گلوتن', 'لبنیات'])
-    },
-    {
+      priority: 1
+    }
+  })
+
+  await prisma.menuItem.create({
+    data: {
       name: 'برگر کلاسیک',
       nameEn: 'Classic Burger',
-      description: 'برگر گوشت با کاهو و گوجه',
-      categoryId: mainCourses.id,
-      price: 145000,
-      preparationTime: 15,
-      calories: 520,
+      description: 'برگر با گوشت، پنیر و سبزیجات',
+      categoryId: burgers.id,
+      price: 85000,
+      preparationTime: 18,
       isAvailable: true,
       isSpecial: false,
-      priority: 3,
-      images: JSON.stringify(['/placeholder-food.jpg']),
-      ingredients: JSON.stringify(['نان برگر', 'گوشت گاو', 'کاهو', 'گوجه', 'پنیر']),
-      allergens: JSON.stringify(['گلوتن', 'لبنیات'])
-    },
-
-    // Desserts
-    {
-      name: 'بستنی وانیلی',
-      nameEn: 'Vanilla Ice Cream',
-      description: 'بستنی خانگی با طعم وانیل',
-      categoryId: desserts.id,
-      price: 35000,
-      preparationTime: 5,
-      calories: 180,
-      isAvailable: true,
-      isSpecial: false,
-      priority: 1,
-      images: JSON.stringify(['/placeholder-food.jpg']),
-      ingredients: JSON.stringify(['شیر', 'خامه', 'وانیل', 'شکر']),
-      allergens: JSON.stringify(['لبنیات'])
-    },
-    {
-      name: 'کیک شکلاتی',
-      nameEn: 'Chocolate Cake',
-      description: 'کیک شکلاتی غنی و خوشمزه',
-      categoryId: desserts.id,
-      price: 55000,
-      preparationTime: 8,
-      calories: 380,
-      isAvailable: true,
-      isSpecial: true,
-      priority: 2,
-      images: JSON.stringify(['/placeholder-food.jpg']),
-      ingredients: JSON.stringify(['آرد', 'شکلات', 'تخم مرغ', 'شکر', 'کره']),
-      allergens: JSON.stringify(['گلوتن', 'تخم مرغ', 'لبنیات'])
-    },
-
-    // Beverages
-    {
-      name: 'چای سنتی',
-      nameEn: 'Traditional Tea',
-      description: 'چای ایرانی معطر',
-      categoryId: beverages.id,
-      price: 15000,
-      preparationTime: 5,
-      calories: 5,
-      isAvailable: true,
-      isSpecial: false,
-      priority: 1,
-      images: JSON.stringify(['/placeholder-food.jpg']),
-      ingredients: JSON.stringify(['چای', 'آب']),
-      allergens: JSON.stringify([])
-    },
-    {
-      name: 'لاته',
-      nameEn: 'Latte',
-      description: 'قهوه اسپرسو با شیر فوم شده',
-      categoryId: beverages.id,
-      price: 45000,
-      preparationTime: 8,
-      calories: 120,
-      isAvailable: true,
-      isSpecial: false,
-      priority: 2,
-      images: JSON.stringify(['/placeholder-food.jpg']),
-      ingredients: JSON.stringify(['اسپرسو', 'شیر']),
-      allergens: JSON.stringify(['لبنیات'])
-    },
-    {
-      name: 'آب انار تازه',
-      nameEn: 'Fresh Pomegranate Juice',
-      description: 'آب انار طبیعی و تازه',
-      categoryId: beverages.id,
-      price: 35000,
-      preparationTime: 3,
-      calories: 95,
-      isAvailable: true,
-      isSpecial: true,
-      priority: 3,
-      images: JSON.stringify(['/placeholder-food.jpg']),
-      ingredients: JSON.stringify(['انار تازه']),
-      allergens: JSON.stringify([])
+      priority: 1
     }
-  ]
+  })
 
-  // Insert menu items
-  for (const item of menuItems) {
-    await prisma.menuItem.create({ data: item })
-  }
+  await prisma.menuItem.create({
+    data: {
+      name: 'پیتزا مارگاریتا',
+      nameEn: 'Pizza Margherita',
+      description: 'پیتزا کلاسیک با ریحان و موتزارلا',
+      categoryId: pizza.id,
+      price: 120000,
+      preparationTime: 25,
+      isAvailable: true,
+      isSpecial: true,
+      priority: 2
+    }
+  })
 
-  console.log('✅ Menu data seeded successfully!')
-  console.log(`📂 Created ${await prisma.category.count()} categories`)
-  console.log(`🍽️ Created ${await prisma.menuItem.count()} menu items`)
-}
+  // چندین آیتم دیگر برای پرکردن منو
+  await prisma.menuItem.create({
+    data: {
+      name: 'قورمه سبزی',
+      nameEn: 'Ghormeh Sabzi',
+      description: 'خورش ایرانی با سبزیجات معطر',
+      categoryId: iranianFood.id,
+      price: 95000,
+      preparationTime: 30,
+      isAvailable: true,
+      isSpecial: true,
+      priority: 1
+    }
+  })
 
-async function main() {
-  try {
-    await seedMenuData()
-  } catch (error) {
-    console.error('❌ Error seeding data:', error)
-    process.exit(1)
-  } finally {
-    await prisma.$disconnect()
-  }
+  await prisma.menuItem.create({
+    data: {
+      name: 'فیله مرغ گریل',
+      nameEn: 'Grilled Chicken Fillet',
+      description: 'فیله مرغ گریل شده با سبزیجات',
+      categoryId: internationalFood.id,
+      price: 75000,
+      preparationTime: 20,
+      isAvailable: true,
+      isSpecial: false,
+      priority: 2
+    }
+  })
+
+  console.log('✅ دیتابیس با موفقیت مقداردهی شد!')
+  
+  // نمایش نتیجه
+  const categoryCount = await prisma.category.count()
+  const itemCount = await prisma.menuItem.count()
+  
+  console.log(`📊 تعداد دسته‌بندی‌ها: ${categoryCount}`)
+  console.log(`📊 تعداد آیتم‌های منو: ${itemCount}`)
 }
 
 main()
+  .then(async () => {
+    await prisma.$disconnect()
+  })
+  .catch(async (e) => {
+    console.error(e)
+    await prisma.$disconnect()
+    process.exit(1)
+  })

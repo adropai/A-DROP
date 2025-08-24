@@ -8,62 +8,70 @@ export async function POST(request: NextRequest) {
     console.log('Upload API called'); // Debug
 
     const data = await request.formData();
-    const file: File | null = data.get('file') as unknown as File;
+    const files = data.getAll('images') as File[]; // Multiple files support
 
-    console.log('File received:', file?.name, file?.size); // Debug
+    console.log('Files received:', files.length); // Debug
 
-    if (!file) {
+    if (!files || files.length === 0) {
       return NextResponse.json(
         { success: false, message: 'فایلی انتخاب نشده است' },
         { status: 400 }
       );
     }
 
-    // بررسی نوع فایل
-    if (!file.type.startsWith('image/')) {
+    const uploadedFiles: string[] = [];
+
+    for (const file of files) {
+      // بررسی نوع فایل
+      if (!file.type.startsWith('image/')) {
+        console.log('Invalid file type:', file.type);
+        continue;
+      }
+
+      // بررسی اندازه فایل (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        console.log('File too large:', file.size);
+        continue;
+      }
+
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+
+      // اطمینان از وجود پوشه uploads/menu
+      const uploadsDir = join(process.cwd(), 'public/uploads/menu');
+      if (!existsSync(uploadsDir)) {
+        await mkdir(uploadsDir, { recursive: true });
+      }
+
+      // ایجاد نام فایل یونیک
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).substring(7);
+      const extension = file.name.split('.').pop();
+      const filename = `${timestamp}_${randomSuffix}.${extension}`;
+      const filePath = join(uploadsDir, filename);
+
+      console.log('Saving file to:', filePath); // Debug
+
+      // ذخیره فایل
+      await writeFile(filePath, buffer);
+
+      const fileUrl = `/uploads/menu/${filename}`;
+      console.log('File saved successfully:', fileUrl); // Debug
+
+      uploadedFiles.push(fileUrl);
+    }
+
+    if (uploadedFiles.length === 0) {
       return NextResponse.json(
-        { success: false, message: 'فقط فایل‌های تصویری مجاز هستند' },
+        { success: false, message: 'هیچ فایل معتبری آپلود نشد' },
         { status: 400 }
       );
     }
-
-    // بررسی اندازه فایل (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json(
-        { success: false, message: 'حداکثر اندازه فایل 5 مگابایت است' },
-        { status: 400 }
-      );
-    }
-
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // اطمینان از وجود پوشه uploads
-    const uploadsDir = join(process.cwd(), 'public/uploads');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-
-    // ایجاد نام فایل یونیک
-    const timestamp = Date.now();
-    const extension = file.name.split('.').pop();
-    const filename = `${timestamp}.${extension}`;
-    const filePath = join(uploadsDir, filename);
-
-    console.log('Saving file to:', filePath); // Debug
-
-    // ذخیره فایل
-    await writeFile(filePath, buffer);
-
-    const fileUrl = `/uploads/${filename}`;
-    console.log('File saved successfully:', fileUrl); // Debug
 
     return NextResponse.json({
       success: true,
-      data: {
-        url: fileUrl,
-        filename: filename
-      }
+      message: `${uploadedFiles.length} فایل آپلود شد`,
+      data: uploadedFiles
     });
   } catch (error) {
     console.error('خطا در آپلود فایل:', error);

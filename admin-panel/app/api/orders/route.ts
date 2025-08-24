@@ -1,23 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { withAuth, PERMISSIONS, type AuthenticatedRequest } from '@/lib/auth-middleware';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
 
-export const GET = withAuth(PERMISSIONS.ORDERS_VIEW)(async function(request: AuthenticatedRequest) {
+export async function GET(request: NextRequest) {
   try {
     console.log('📦 Orders API called - fetching from database');
-    console.log('🔐 User permissions:', request.user?.permissions);
-    
+
+    const url = new URL(request.url)
+    const statusParam = url.searchParams.get('status')
+    const limitParam = url.searchParams.get('limit')
+
+    const where: any = {}
+    if (statusParam) {
+      const list = statusParam.split(',').map(s => s.trim().toUpperCase())
+      const valid = list.filter(s => s in OrderStatus)
+      if (valid.length > 0) where.status = { in: valid as OrderStatus[] }
+    }
+
+    const take = limitParam ? Math.max(1, Math.min(parseInt(limitParam, 10) || 20, 100)) : undefined
+
     const orders = await prisma.order.findMany({
-      include: {
+      where: Object.keys(where).length ? where : undefined,
+      select: {
+        id: true,
+        orderNumber: true,
+        customerName: true,
+        customerPhone: true,
+        customerId: true,
+        customerAddress: true,
+        status: true,
+        type: true,
+        totalAmount: true,
+        paymentMethod: true,
+        notes: true,
+        tableNumber: true,
+        estimatedTime: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: {
-            menuItem: true
+          select: {
+            id: true,
+            quantity: true,
+            price: true,
+            notes: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                price: true,
+                category: true
+              }
+            }
           }
         }
       },
       orderBy: {
         createdAt: 'desc'
-      }
+      },
+      take
     });
 
     const transformedOrders = orders.map(order => ({
@@ -36,7 +76,8 @@ export const GET = withAuth(PERMISSIONS.ORDERS_VIEW)(async function(request: Aut
       })),
       totalAmount: order.totalAmount,
       status: order.status,
-      type: (order as any).type || 'Dine-in',
+      type: order.type || 'DINE_IN',
+      tableNumber: order.tableNumber,
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
     }));
@@ -48,7 +89,7 @@ export const GET = withAuth(PERMISSIONS.ORDERS_VIEW)(async function(request: Aut
       orders: transformedOrders,
       total: orders.length,
       page: 1,
-      limit: 20
+      limit: take || 20
     });
 
   } catch (error: any) {
@@ -63,13 +104,12 @@ export const GET = withAuth(PERMISSIONS.ORDERS_VIEW)(async function(request: Aut
       { status: 500 }
     );
   }
-});
+}
 
-export const POST = withAuth(PERMISSIONS.ORDERS_CREATE)(async function(request: AuthenticatedRequest) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     console.log('📦 Creating new order:', body);
-    console.log('🔐 Created by user:', request.user?.email);
     
     const newOrder = await prisma.order.create({
       data: {
@@ -79,23 +119,45 @@ export const POST = withAuth(PERMISSIONS.ORDERS_CREATE)(async function(request: 
         customerId: body.customer.id || null,
         customerAddress: body.customer.address || null,
         status: body.status || 'PENDING',
-        type: body.type || 'Dine-in',
+        type: body.type === 'dine-in' ? 'DINE_IN' : body.type === 'takeaway' ? 'TAKEAWAY' : body.type === 'delivery' ? 'DELIVERY' : 'DINE_IN',
         totalAmount: body.totalAmount,
         paymentMethod: body.paymentMethod || null,
         notes: body.notes || null,
+        tableNumber: body.tableNumber || null,
+        estimatedTime: body.estimatedTime || null,
         items: {
           create: body.items.map((item: any) => ({
-            menuItemId: item.id,
+            menuItemId: item.menuItemId || item.id,
             quantity: item.quantity,
             price: item.price,
             notes: item.notes || null
           }))
         }
       } as any,
-      include: {
+      select: {
+        id: true,
+        orderNumber: true,
+        customerName: true,
+        customerPhone: true,
+        customerId: true,
+        status: true,
+        type: true,
+        totalAmount: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: {
-            menuItem: true
+          select: {
+            id: true,
+            quantity: true,
+            price: true,
+            notes: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                price: true
+              }
+            }
           }
         }
       }
@@ -139,15 +201,14 @@ export const POST = withAuth(PERMISSIONS.ORDERS_CREATE)(async function(request: 
       { status: 500 }
     );
   }
-});
+}
 
-export const PATCH = withAuth(PERMISSIONS.ORDERS_UPDATE)(async function(request: AuthenticatedRequest) {
+export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const { orderId, status, notes } = body;
     
     console.log('📦 Updating order status:', { orderId, status });
-    console.log('🔐 Updated by user:', request.user?.email);
 
     if (!orderId || !status) {
       return NextResponse.json(
@@ -156,7 +217,7 @@ export const PATCH = withAuth(PERMISSIONS.ORDERS_UPDATE)(async function(request:
       );
     }
 
-    const validStatuses = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERED', 'CANCELLED'];
+  const validStatuses = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'SERVED', 'CANCELLED', 'COMPLETED', 'REFUNDED'];
     
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
@@ -171,12 +232,11 @@ export const PATCH = withAuth(PERMISSIONS.ORDERS_UPDATE)(async function(request:
         status,
         notes: notes || undefined,
       },
-      include: {
-        items: {
-          include: {
-            menuItem: true
-          }
-        }
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        updatedAt: true
       }
     });
 
@@ -204,4 +264,4 @@ export const PATCH = withAuth(PERMISSIONS.ORDERS_UPDATE)(async function(request:
       { status: 500 }
     );
   }
-});
+}

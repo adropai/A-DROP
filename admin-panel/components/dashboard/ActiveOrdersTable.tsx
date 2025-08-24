@@ -1,63 +1,29 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { Card, Table, Tag, Button, Space, message } from 'antd'
+import React from 'react'
+import { Card, Table, Tag, Button, Space, message, Alert } from 'antd'
 import { EyeOutlined, CheckOutlined, ClockCircleOutlined } from '@ant-design/icons'
+import { useOrders } from '@/hooks/useDashboardDataOptimized'
 
-interface Order {
+type DashboardOrder = {
   id: string
-  tableNumber: string
+  tableNumber?: number | null
   items: string[]
-  totalAmount: number
-  status: 'PENDING' | 'PREPARING' | 'READY' | 'DELIVERED'
+  total: number
+  status: 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED' | 'COMPLETED' | 'REFUNDED'
   createdAt: string
   customerName?: string
 }
 
 const ActiveOrdersTable: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(false)
-
-  // Mock data
-  useEffect(() => {
-    const mockOrders: Order[] = [
-      {
-        id: '1247',
-        tableNumber: '12',
-        items: ['کباب کوبیده', 'نوشابه'],
-        totalAmount: 65000,
-        status: 'PREPARING',
-        createdAt: '10:30',
-        customerName: 'علی احمدی'
-      },
-      {
-        id: '1248',
-        tableNumber: '8',
-        items: ['پیتزا مخصوص', 'سالاد سزار'],
-        totalAmount: 89000,
-        status: 'PENDING',
-        createdAt: '10:45',
-        customerName: 'مریم رضایی'
-      },
-      {
-        id: '1249',
-        tableNumber: '15',
-        items: ['چلو خورشت قیمه'],
-        totalAmount: 42000,
-        status: 'READY',
-        createdAt: '10:15',
-        customerName: 'محمد کریمی'
-      }
-    ]
-    setOrders(mockOrders)
-  }, [])
+  const { orders, loading, error, updateOrderStatus } = useOrders()
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PENDING': return 'orange'
       case 'PREPARING': return 'blue'
       case 'READY': return 'green'
-      case 'DELIVERED': return 'gray'
+      case 'SERVED': return 'gray'
       default: return 'default'
     }
   }
@@ -67,20 +33,18 @@ const ActiveOrdersTable: React.FC = () => {
       case 'PENDING': return 'در انتظار'
       case 'PREPARING': return 'در حال آماده‌سازی'
       case 'READY': return 'آماده تحویل'
-      case 'DELIVERED': return 'تحویل شده'
+      case 'SERVED': return 'سرو شده'
       default: return status
     }
   }
 
-  const handleStatusChange = (orderId: string, newStatus: string) => {
-    setOrders(prev => 
-      prev.map(order => 
-        order.id === orderId 
-          ? { ...order, status: newStatus as any }
-          : order
-      )
-    )
-    message.success('وضعیت سفارش به‌روزرسانی شد')
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    try {
+      await updateOrderStatus(orderId, newStatus)
+      message.success('وضعیت سفارش به‌روزرسانی شد')
+    } catch (e) {
+      message.error('خطا در به‌روزرسانی وضعیت سفارش')
+    }
   }
 
   const columns = [
@@ -88,13 +52,13 @@ const ActiveOrdersTable: React.FC = () => {
       title: 'سفارش',
       dataIndex: 'id',
       key: 'id',
-      render: (id: string) => `#${id}`
+  render: (id: string) => `#${id}`
     },
     {
       title: 'میز',
-      dataIndex: 'tableNumber',
+  dataIndex: 'tableNumber',
       key: 'tableNumber',
-      render: (num: string) => `میز ${num}`
+  render: (num: string | number | null) => num ? `میز ${num}` : '-'
     },
     {
       title: 'مشتری',
@@ -105,13 +69,13 @@ const ActiveOrdersTable: React.FC = () => {
       title: 'آیتم‌ها',
       dataIndex: 'items',
       key: 'items',
-      render: (items: string[]) => items.join(', ')
+  render: (items: string[]) => (items || []).join(', ')
     },
     {
       title: 'مبلغ',
-      dataIndex: 'totalAmount',
-      key: 'totalAmount',
-      render: (amount: number) => `${amount.toLocaleString()} ﷼`
+  dataIndex: 'total',
+  key: 'total',
+  render: (amount: number) => `${(amount || 0).toLocaleString()} ﷼`
     },
     {
       title: 'وضعیت',
@@ -127,7 +91,7 @@ const ActiveOrdersTable: React.FC = () => {
       title: 'زمان',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (time: string) => (
+  render: (time: string) => (
         <span>
           <ClockCircleOutlined style={{ marginRight: 4 }} />
           {time}
@@ -137,7 +101,7 @@ const ActiveOrdersTable: React.FC = () => {
     {
       title: 'عملیات',
       key: 'actions',
-      render: (_, record: Order) => (
+  render: (_: unknown, record: DashboardOrder) => (
         <Space size="small">
           <Button size="small" icon={<EyeOutlined />} />
           {record.status === 'PENDING' && (
@@ -159,11 +123,11 @@ const ActiveOrdersTable: React.FC = () => {
               آماده است
             </Button>
           )}
-          {record.status === 'READY' && (
+      {record.status === 'READY' && (
             <Button 
               size="small" 
               type="default"
-              onClick={() => handleStatusChange(record.id, 'DELIVERED')}
+        onClick={() => handleStatusChange(record.id, 'SERVED')}
             >
               تحویل شد
             </Button>
@@ -175,6 +139,9 @@ const ActiveOrdersTable: React.FC = () => {
 
   return (
     <Card title="سفارشات فعال" size="small">
+      {error && (
+        <Alert type="error" showIcon message="خطا در دریافت سفارشات" description={error} style={{ marginBottom: 12 }} />
+      )}
       <Table
         dataSource={orders}
         columns={columns}

@@ -22,9 +22,7 @@
     "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": false,
     "types": [
-      "node",
-      "jest",
-      "@testing-library/jest-dom"
+      "node"
     ],
     "plugins": [
       {

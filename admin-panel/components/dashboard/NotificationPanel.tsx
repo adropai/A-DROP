@@ -95,7 +95,7 @@ const NotificationPanel: React.FC = () => {
       }
       size="small"
       style={{ height: 400 }}
-      bodyStyle={{ padding: '8px', height: 340, overflow: 'auto' }}
+      styles={{ body: { padding: '8px', height: 340, overflow: 'auto' } }}
     >
       <Spin spinning={loading}>
         {notifications.length === 0 ? (

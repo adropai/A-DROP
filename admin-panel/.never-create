@@ -1,0 +1,63 @@
+# فایل‌هایی که هرگز نباید ایجاد شوند
+
+# Test files (root level)
+test-*.js
+test-*.ts
+test-*.jsx
+test-*.tsx
+test-*.html
+test-*.css
+test-*.json
+create-test*.*
+
+# Backup files
+*-backup.*
+*-new.*
+*-old.*
+*-temp.*
+*-copy.*
+*.backup
+*.bak
+
+# Route files (auto-generated)
+app/api/cashier/route*.ts
+app/api/kitchen/stats/route*.ts
+app/api/**/route-new.ts
+app/api/**/route-old.ts
+app/api/**/route-backup.ts
+
+# Component files
+components/cashier/CashierOrderCard.tsx
+components/cashier/PendingOrderCard.tsx
+components/cashier/CashierPage-backup.tsx
+components/kitchen/KitchenStatsCards.tsx
+components/kitchen/KitchenTicketCard.tsx
+components/**/CreateCustomerForm-new.tsx
+
+# Hook files
+hooks/useSecurity-new.ts
+hooks/*-new.ts
+hooks/*-backup.ts
+
+# Temporary directories
+.temp/
+temp/
+tmp/
+
+# VS Code auto-generated
+.vscode/settings-backup.json
+.vscode/tasks-backup.json
+
+# IDE files
+*.swp
+*.swo
+*~
+.#*
+
+# Log files
+*.log.*
+test-logs/
+
+# Cache files
+.cache-test/
+test-cache/

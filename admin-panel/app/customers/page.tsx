@@ -21,7 +21,6 @@ import {
   Descriptions,
   Timeline,
   Progress,
-  DatePicker,
   Tooltip,
   Badge,
   Divider
@@ -34,6 +33,7 @@ import {
   EyeOutlined,
   HeartOutlined,
   ShoppingCartOutlined,
+  DeleteOutlined,
   PhoneOutlined,
   MailOutlined,
   EnvironmentOutlined,
@@ -46,31 +46,50 @@ import {
   ReloadOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import momentJalaali from 'moment-jalaali';
+import CreateCustomerForm from '@/components/customers/CreateCustomerForm';
+import PersianCalendar from '@/components/common/AdvancedPersianCalendar';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { Search } = Input;
 const { TabPane } = Tabs;
-const { RangePicker } = DatePicker;
 
 interface Customer {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   phone: string;
   address?: string;
-  birthday?: string;
+  dateOfBirth?: string;
   gender?: 'male' | 'female';
-  segment: 'new' | 'regular' | 'vip' | 'churned';
-  loyaltyPoints: number;
-  totalOrders: number;
-  totalSpent: number;
-  averageOrderValue: number;
+  segment?: 'new' | 'regular' | 'vip' | 'churned';
+  loyaltyPoints?: number;
+  totalOrders?: number;
+  totalSpent?: number;
+  averageOrderValue?: number;
   lastOrderDate?: string;
-  registrationDate: string;
-  preferences?: string[];
+  registrationDate?: string;
+  createdAt?: string;
+  tags?: string[];
   notes?: string;
-  status: 'active' | 'inactive' | 'blocked';
+  status?: 'active' | 'inactive' | 'blocked';
+  avatar?: string;
+  preferences?: {
+    favoriteItems?: string;
+    allergies?: string;
+    dietaryRestrictions?: string;
+    preferredPaymentMethod?: string;
+    deliveryInstructions?: string;
+  };
+  addresses?: Array<{
+    title: string;
+    address: string;
+    city: string;
+    district: string;
+    postalCode: string;
+    isDefault: boolean;
+  }>;
 }
 
 interface CustomerStats {
@@ -101,7 +120,6 @@ const CustomersPage: React.FC = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
-  const [form] = Form.useForm();
 
   useEffect(() => {
     fetchCustomers();
@@ -127,62 +145,30 @@ const CustomersPage: React.FC = () => {
     try {
       const response = await fetch('/api/customers/stats');
       const data = await response.json();
-      if (data.success) {
+      console.log('📊 Customer stats response:', data);
+      if (data.success && data.stats) {
         setStats(data.stats);
+      } else {
+        console.error('Invalid stats response:', data);
       }
     } catch (error) {
       console.error('Error fetching customer stats:', error);
     }
   };
 
-  const handleCreateCustomer = async (values: any) => {
-    try {
-      const response = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        message.success('مشتری جدید با موفقیت اضافه شد');
-        setIsModalVisible(false);
-        form.resetFields();
-        fetchCustomers();
-      } else {
-        message.error(data.message || 'خطا در ایجاد مشتری');
-      }
-    } catch (error) {
-      message.error('خطا در ایجاد مشتری');
-    }
+  const handleCreateCustomer = async () => {
+    // فرم جدید خودش handle می‌کند
+    fetchCustomers();
+    fetchStats();
   };
 
-  const handleEditCustomer = async (values: any) => {
-    if (!selectedCustomer) return;
-    
-    try {
-      const response = await fetch(`/api/customers/${selectedCustomer.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        message.success('اطلاعات مشتری با موفقیت بروزرسانی شد');
-        setIsModalVisible(false);
-        setSelectedCustomer(null);
-        form.resetFields();
-        fetchCustomers();
-      } else {
-        message.error(data.message || 'خطا در بروزرسانی اطلاعات');
-      }
-    } catch (error) {
-      message.error('خطا در بروزرسانی اطلاعات');
-    }
+  const handleEditCustomer = async () => {
+    // فرم جدید خودش handle می‌کند
+    fetchCustomers();
+    fetchStats();
   };
 
-  const getSegmentColor = (segment: string) => {
+  const getSegmentColor = (segment?: string) => {
     const colors = {
       new: 'blue',
       regular: 'green', 
@@ -192,17 +178,17 @@ const CustomersPage: React.FC = () => {
     return colors[segment as keyof typeof colors] || 'default';
   };
 
-  const getSegmentText = (segment: string) => {
+  const getSegmentText = (segment?: string) => {
     const texts = {
       new: 'جدید',
       regular: 'عادی',
       vip: 'ویژه',
       churned: 'غیرفعال'
     };
-    return texts[segment as keyof typeof texts] || segment;
+    return texts[segment as keyof typeof texts] || segment || 'نامشخص';
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status?: string) => {
     const colors = {
       active: 'success',
       inactive: 'warning',
@@ -211,19 +197,19 @@ const CustomersPage: React.FC = () => {
     return colors[status as keyof typeof colors] || 'default';
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status?: string) => {
     const texts = {
       active: 'فعال',
       inactive: 'غیرفعال',
       blocked: 'مسدود'
     };
-    return texts[status as keyof typeof texts] || status;
+    return texts[status as keyof typeof texts] || status || 'نامشخص';
   };
 
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch = !searchText || 
       customer.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      customer.email.toLowerCase().includes(searchText.toLowerCase()) ||
+      (customer.email && customer.email.toLowerCase().includes(searchText.toLowerCase())) ||
       customer.phone.includes(searchText);
     
     const matchesSegment = filterSegment === 'all' || customer.segment === filterSegment;
@@ -285,9 +271,9 @@ const CustomersPage: React.FC = () => {
       key: 'stats',
       render: (record: Customer) => (
         <div>
-          <div><ShoppingCartOutlined /> {record.totalOrders} سفارش</div>
+          <div><ShoppingCartOutlined /> {record.totalOrders || 0} سفارش</div>
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            {record.totalSpent.toLocaleString()} تومان
+            {(record.totalSpent || 0).toLocaleString()} تومان
           </Text>
         </div>
       ),
@@ -297,7 +283,7 @@ const CustomersPage: React.FC = () => {
       dataIndex: 'loyaltyPoints',
       key: 'loyaltyPoints',
       render: (points: number) => (
-        <Badge count={points} style={{ backgroundColor: '#52c41a' }}>
+        <Badge count={points || 0} style={{ backgroundColor: '#52c41a' }}>
           <GiftOutlined style={{ fontSize: '16px', color: '#52c41a' }} />
         </Badge>
       ),
@@ -315,6 +301,27 @@ const CustomersPage: React.FC = () => {
       render: (status: string) => (
         <Badge status={getStatusColor(status) as any} text={getStatusText(status)} />
       ),
+    },
+    {
+      title: 'تاریخ تولد',
+      dataIndex: 'dateOfBirth',
+      key: 'dateOfBirth',
+      render: (date: string) => {
+        if (!date) return '-';
+        try {
+          // تبدیل میلادی به شمسی و نمایش به صورت ۱۴۰۱/۰۵/۲۶
+          const gregorianDate = new Date(date);
+          if (isNaN(gregorianDate.getTime())) return '-';
+          
+          const jalaaliDate = momentJalaali(gregorianDate);
+          if (!jalaaliDate.isValid()) return '-';
+          
+          return jalaaliDate.format('jYYYY/jMM/jDD').replace(/j/g, '');
+        } catch (error) {
+          console.error('خطا در تبدیل تاریخ:', error);
+          return '-';
+        }
+      },
     },
     {
       title: 'عملیات',
@@ -337,7 +344,6 @@ const CustomersPage: React.FC = () => {
               icon={<EditOutlined />}
               onClick={() => {
                 setSelectedCustomer(record);
-                form.setFieldsValue(record);
                 setIsModalVisible(true);
               }}
             />
@@ -365,7 +371,7 @@ const CustomersPage: React.FC = () => {
           <Card>
             <Statistic
               title="کل مشتریان"
-              value={stats.totalCustomers}
+              value={stats?.totalCustomers || 0}
               prefix={<UserOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
@@ -375,7 +381,7 @@ const CustomersPage: React.FC = () => {
           <Card>
             <Statistic
               title="مشتریان جدید"
-              value={stats.newCustomers}
+              value={stats?.newCustomers || 0}
               prefix={<PlusOutlined />}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -385,7 +391,7 @@ const CustomersPage: React.FC = () => {
           <Card>
             <Statistic
               title="مشتریان ویژه"
-              value={stats.vipCustomers}
+              value={stats?.vipCustomers || 0}
               prefix={<TrophyOutlined />}
               valueStyle={{ color: '#faad14' }}
             />
@@ -395,7 +401,7 @@ const CustomersPage: React.FC = () => {
           <Card>
             <Statistic
               title="میانگین خرید"
-              value={stats.averageOrderValue}
+              value={stats?.averageOrderValue || 0}
               suffix="تومان"
               prefix={<ShoppingCartOutlined />}
               valueStyle={{ color: '#722ed1' }}
@@ -449,7 +455,6 @@ const CustomersPage: React.FC = () => {
                 icon={<PlusOutlined />}
                 onClick={() => {
                   setSelectedCustomer(null);
-                  form.resetFields();
                   setIsModalVisible(true);
                 }}
               >
@@ -486,109 +491,19 @@ const CustomersPage: React.FC = () => {
       </Card>
 
       {/* Create/Edit Customer Modal */}
-      <Modal
-        title={selectedCustomer ? 'ویرایش مشتری' : 'مشتری جدید'}
-        open={isModalVisible}
+      <CreateCustomerForm
+        visible={isModalVisible}
         onCancel={() => {
           setIsModalVisible(false);
           setSelectedCustomer(null);
-          form.resetFields();
         }}
-        footer={null}
-        width={600}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={selectedCustomer ? handleEditCustomer : handleCreateCustomer}
-        >
-          <Row gutter={[16, 0]}>
-            <Col span={12}>
-              <Form.Item
-                name="name"
-                label="نام و نام خانوادگی"
-                rules={[{ required: true, message: 'نام الزامی است' }]}
-              >
-                <Input placeholder="نام کامل مشتری" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="phone"
-                label="شماره تماس"
-                rules={[{ required: true, message: 'شماره تماس الزامی است' }]}
-              >
-                <Input placeholder="09123456789" />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={[16, 0]}>
-            <Col span={12}>
-              <Form.Item
-                name="email"
-                label="ایمیل"
-                rules={[{ type: 'email', message: 'ایمیل معتبر وارد کنید' }]}
-              >
-                <Input placeholder="example@email.com" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="gender" label="جنسیت">
-                <Select placeholder="انتخاب کنید">
-                  <Option value="male">آقا</Option>
-                  <Option value="female">خانم</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item name="address" label="آدرس">
-            <Input.TextArea placeholder="آدرس کامل مشتری" rows={2} />
-          </Form.Item>
-
-          <Row gutter={[16, 0]}>
-            <Col span={12}>
-              <Form.Item name="segment" label="دسته‌بندی">
-                <Select placeholder="انتخاب دسته‌بندی">
-                  <Option value="new">جدید</Option>
-                  <Option value="regular">عادی</Option>
-                  <Option value="vip">ویژه</Option>
-                  <Option value="churned">غیرفعال</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="status" label="وضعیت">
-                <Select placeholder="انتخاب وضعیت">
-                  <Option value="active">فعال</Option>
-                  <Option value="inactive">غیرفعال</Option>
-                  <Option value="blocked">مسدود</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item name="notes" label="یادداشت">
-            <Input.TextArea placeholder="یادداشت درباره مشتری" rows={2} />
-          </Form.Item>
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">
-                {selectedCustomer ? 'بروزرسانی' : 'ایجاد'}
-              </Button>
-              <Button onClick={() => {
-                setIsModalVisible(false);
-                setSelectedCustomer(null);
-                form.resetFields();
-              }}>
-                انصراف
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+        onSuccess={() => {
+          setIsModalVisible(false);
+          setSelectedCustomer(null);
+          handleCreateCustomer();
+        }}
+        editingCustomer={selectedCustomer}
+      />
 
       {/* Customer Details Modal */}
       <Modal
@@ -620,15 +535,84 @@ const CustomersPage: React.FC = () => {
                 <Descriptions.Item label="وضعیت">
                   <Badge status={getStatusColor(selectedCustomer.status) as any} text={getStatusText(selectedCustomer.status)} />
                 </Descriptions.Item>
-                <Descriptions.Item label="امتیاز وفاداری">{selectedCustomer.loyaltyPoints}</Descriptions.Item>
-                <Descriptions.Item label="تعداد سفارشات">{selectedCustomer.totalOrders}</Descriptions.Item>
-                <Descriptions.Item label="کل خریدها">{selectedCustomer.totalSpent.toLocaleString()} تومان</Descriptions.Item>
-                <Descriptions.Item label="میانگین سفارش">{selectedCustomer.averageOrderValue.toLocaleString()} تومان</Descriptions.Item>
-                <Descriptions.Item label="تاریخ ثبت‌نام">
-                  {dayjs(selectedCustomer.registrationDate).format('YYYY/MM/DD')}
+                <Descriptions.Item label="امتیاز وفاداری">{selectedCustomer.loyaltyPoints || 0}</Descriptions.Item>
+                <Descriptions.Item label="تعداد سفارشات">{selectedCustomer.totalOrders || 0}</Descriptions.Item>
+                <Descriptions.Item label="کل خریدها">{(selectedCustomer.totalSpent || 0).toLocaleString()} تومان</Descriptions.Item>
+                <Descriptions.Item label="میانگین سفارش">{(selectedCustomer.averageOrderValue || 0).toLocaleString()} تومان</Descriptions.Item>
+                <Descriptions.Item label="تاریخ تولد">
+                  {selectedCustomer.dateOfBirth ? (() => {
+                    try {
+                      const gregorianDate = new Date(selectedCustomer.dateOfBirth);
+                      if (isNaN(gregorianDate.getTime())) return 'وارد نشده';
+                      
+                      const jalaaliDate = momentJalaali(gregorianDate);
+                      if (!jalaaliDate.isValid()) return 'وارد نشده';
+                      
+                      return jalaaliDate.format('jYYYY/jMM/jDD').replace(/j/g, '');
+                    } catch (error) {
+                      return 'وارد نشده';
+                    }
+                  })() : 'وارد نشده'}
                 </Descriptions.Item>
+                <Descriptions.Item label="جنسیت">
+                  {selectedCustomer.gender === 'male' ? '👨 آقا' : 
+                   selectedCustomer.gender === 'female' ? '👩 خانم' : 'نامشخص'}
+                </Descriptions.Item>
+                <Descriptions.Item label="تاریخ ثبت‌نام">
+                  {selectedCustomer.registrationDate 
+                    ? dayjs(selectedCustomer.registrationDate).format('YYYY/MM/DD')
+                    : selectedCustomer.createdAt 
+                      ? dayjs(selectedCustomer.createdAt).format('YYYY/MM/DD')
+                      : 'نامشخص'
+                  }
+                </Descriptions.Item>
+                {selectedCustomer.tags && selectedCustomer.tags.length > 0 && (
+                  <Descriptions.Item label="برچسب‌ها" span={2}>
+                    <Space wrap>
+                      {selectedCustomer.tags.map((tag: string, index: number) => (
+                        <Tag key={index} color="blue">{tag}</Tag>
+                      ))}
+                    </Space>
+                  </Descriptions.Item>
+                )}
                 {selectedCustomer.address && (
                   <Descriptions.Item label="آدرس" span={2}>{selectedCustomer.address}</Descriptions.Item>
+                )}
+                {selectedCustomer.preferences && (
+                  <Descriptions.Item label="ترجیحات غذایی" span={2}>
+                    <div>
+                      {selectedCustomer.preferences.favoriteItems && selectedCustomer.preferences.favoriteItems.length > 0 && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <Text strong>غذاهای مورد علاقه: </Text>
+                          <Text>{JSON.parse(selectedCustomer.preferences.favoriteItems).join(', ')}</Text>
+                        </div>
+                      )}
+                      {selectedCustomer.preferences.allergies && selectedCustomer.preferences.allergies.length > 0 && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <Text strong>آلرژی‌ها: </Text>
+                          <Text>{JSON.parse(selectedCustomer.preferences.allergies).join(', ')}</Text>
+                        </div>
+                      )}
+                      {selectedCustomer.preferences.dietaryRestrictions && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <Text strong>محدودیت‌های غذایی: </Text>
+                          <Text>{selectedCustomer.preferences.dietaryRestrictions}</Text>
+                        </div>
+                      )}
+                      {selectedCustomer.preferences.preferredPaymentMethod && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <Text strong>روش پرداخت ترجیحی: </Text>
+                          <Text>{selectedCustomer.preferences.preferredPaymentMethod}</Text>
+                        </div>
+                      )}
+                      {selectedCustomer.preferences.deliveryInstructions && (
+                        <div>
+                          <Text strong>دستورات تحویل: </Text>
+                          <Text>{selectedCustomer.preferences.deliveryInstructions}</Text>
+                        </div>
+                      )}
+                    </div>
+                  </Descriptions.Item>
                 )}
                 {selectedCustomer.notes && (
                   <Descriptions.Item label="یادداشت" span={2}>{selectedCustomer.notes}</Descriptions.Item>
@@ -650,6 +634,21 @@ const CustomersPage: React.FC = () => {
           </Tabs>
         )}
       </Modal>
+
+      {/* Create/Edit Customer Modal */}
+      <CreateCustomerForm
+        visible={isModalVisible}
+        onCancel={() => {
+          setIsModalVisible(false);
+          setSelectedCustomer(null);
+        }}
+        onSuccess={() => {
+          setIsModalVisible(false);
+          setSelectedCustomer(null);
+          handleCreateCustomer();
+        }}
+        editingCustomer={selectedCustomer}
+      />
     </div>
   );
 };

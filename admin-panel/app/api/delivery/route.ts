@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
               include: {
                 menuItem: {
                   select: {
+                    id: true,
                     name: true,
                     price: true
                   }
@@ -50,27 +51,16 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        customer: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            phone: true
-          }
-        },
         courier: {
           select: {
             id: true,
             name: true,
             phone: true,
             vehicleType: true,
-            status: true,
-            currentLat: true,
-            currentLng: true
+            vehicleDetails: true,
+            status: true
           }
-        },
-        pickupAddress: true,
-        deliveryAddress: true
+        }
       },
       orderBy: {
         createdAt: 'desc'
@@ -96,7 +86,58 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        deliveries,
+        deliveries: deliveries.map(delivery => ({
+          id: delivery.id,
+          orderId: delivery.orderId.toString(),
+          order: {
+            id: delivery.order.id.toString(),
+            orderNumber: delivery.order.orderNumber,
+            totalAmount: delivery.order.totalAmount,
+            status: delivery.order.status,
+            customerName: delivery.order.customerName,
+            customerPhone: delivery.order.customerPhone,
+            customerAddress: delivery.order.customerAddress,
+            notes: delivery.order.notes,
+            items: delivery.order.items.map(item => ({
+              id: item.id.toString(),
+              name: item.menuItem.name,
+              quantity: item.quantity,
+              price: item.price,
+              menuItem: {
+                id: item.menuItem.id,
+                name: item.menuItem.name
+              }
+            }))
+          },
+          courier: delivery.courier ? {
+            id: delivery.courier.id,
+            name: delivery.courier.name,
+            phone: delivery.courier.phone,
+            vehicleType: delivery.courier.vehicleType,
+            vehicleDetails: delivery.courier.vehicleDetails,
+            status: delivery.courier.status
+          } : null,
+          status: delivery.status,
+          deliveryAddress: delivery.deliveryAddress,
+          customerName: delivery.customerName,
+          customerPhone: delivery.customerPhone,
+          pickupAddress: delivery.pickupAddress,
+          customerNotes: delivery.customerNotes,
+          totalAmount: delivery.order.totalAmount,
+          deliveryFee: delivery.deliveryFee,
+          assignedAt: delivery.assignedAt,
+          pickedUpAt: delivery.pickedUpAt,
+          deliveredAt: delivery.deliveredAt,
+          createdAt: delivery.createdAt,
+          updatedAt: delivery.updatedAt,
+          // Customer object for UI compatibility
+          customer: {
+            id: `temp_${delivery.order.id}`,
+            name: delivery.customerName || delivery.order.customerName || 'مشتری ناشناس',
+            phone: delivery.customerPhone || delivery.order.customerPhone || '',
+            address: delivery.deliveryAddress || delivery.order.customerAddress || ''
+          }
+        })),
         pagination: {
           page,
           limit,

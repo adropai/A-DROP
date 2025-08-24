@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Layout, Menu, Avatar, Dropdown, Badge, Button, Space, Typography } from 'antd'
+import { Layout, Menu, Avatar, Dropdown, Badge, Button, Space, Typography, App } from 'antd'
 import { 
   DashboardOutlined,
   ShoppingCartOutlined,
@@ -31,13 +31,21 @@ import {
 } from '@ant-design/icons'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useAuth } from './providers/AuthProvider'
 
 const { Header, Sider, Content } = Layout
 const { Text } = Typography
 
 const RootDashboard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { message } = App.useApp();
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
+  const { logout, user } = useAuth()
+
+  const handleLogout = () => {
+    logout()
+    message.success('با موفقیت خارج شدید')
+  }
 
   const menuItems = [
     {
@@ -91,14 +99,9 @@ const RootDashboard: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       label: <Link href="/inventory">انبار</Link>
     },
     {
-      key: '/staff',
+      key: '/team-management',
       icon: <TeamOutlined />,
-      label: <Link href="/staff">کارکنان</Link>
-    },
-    {
-      key: '/roles',
-      icon: <LockOutlined />,
-      label: <Link href="/roles">نقش‌ها</Link>
+      label: <Link href="/team-management">مدیریت تیم</Link>
     },
     {
       key: '/loyalty',
@@ -161,7 +164,8 @@ const RootDashboard: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       key: 'logout',
       icon: <LogoutOutlined />,
       label: 'خروج',
-      danger: true
+      danger: true,
+      onClick: handleLogout
     }
   ]
 
@@ -223,7 +227,7 @@ const RootDashboard: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             >
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar icon={<UserOutlined />} />
-                <Text strong>مدیر سیستم</Text>
+                <Text strong>{user?.name || 'مدیر سیستم'}</Text>
               </Space>
             </Dropdown>
           </Space>

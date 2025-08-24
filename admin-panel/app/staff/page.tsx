@@ -27,7 +27,6 @@ import {
   ProFormSelect, 
   ProFormTextArea,
   ProFormDigit,
-  ProFormDatePicker,
   ProFormUploadButton,
   ProCard,
   StatisticCard
@@ -57,6 +56,7 @@ import { Staff, Shift } from '@/types/staff'
 import { User, UserRole, DEFAULT_ROLES } from '@/types/auth'
 import type { ActionType, ProColumns } from '@ant-design/pro-components'
 import { useRef } from 'react'
+import PersianCalendar from '@/components/common/AdvancedPersianCalendar'
 
 const { TabPane } = Tabs
 
@@ -662,11 +662,18 @@ export default function StaffManagementPage() {
               />
             </Col>
             <Col span={12}>
-              <ProFormDatePicker
-                name="hireDate"
+              <Form.Item 
+                name="hireDate" 
                 label="تاریخ استخدام"
                 rules={[{ required: true, message: 'تاریخ استخدام الزامی است' }]}
-              />
+              >
+                <PersianCalendar 
+                  placeholder="انتخاب تاریخ استخدام"
+                  onChange={(date: string) => {
+                    console.log('Hire date selected:', date);
+                  }}
+                />
+              </Form.Item>
             </Col>
           </Row>
 
@@ -736,11 +743,18 @@ export default function StaffManagementPage() {
 
           <Row gutter={16}>
             <Col span={12}>
-              <ProFormDatePicker
-                name="date"
-                label="تاریخ"
-                rules={[{ required: true, message: 'تاریخ الزامی است' }]}
-              />
+              <Form.Item 
+                name="date" 
+                label="تاریخ شیفت"
+                rules={[{ required: true, message: 'تاریخ شیفت الزامی است' }]}
+              >
+                <PersianCalendar 
+                  placeholder="انتخاب تاریخ شیفت"
+                  onChange={(date: string) => {
+                    console.log('Shift date selected:', date);
+                  }}
+                />
+              </Form.Item>
             </Col>
             <Col span={12}>
               <ProFormSelect

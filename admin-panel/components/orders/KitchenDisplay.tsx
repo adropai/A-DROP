@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Card, Row, Col, Typography, Tag, List, Avatar, Button, Space, message } from 'antd'
+import { Card, Row, Col, Typography, Tag, List, Avatar, Button, Space, App } from 'antd'
 import { 
   ClockCircleOutlined, FireOutlined, CheckCircleOutlined, 
   AlertOutlined, UserOutlined, ShoppingCartOutlined 
@@ -15,6 +15,7 @@ interface KitchenDisplayProps {
 }
 
 const KitchenDisplay: React.FC<KitchenDisplayProps> = ({ refreshInterval = 30000 }) => {
+  const { message } = App.useApp();
   const [orders, setOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 

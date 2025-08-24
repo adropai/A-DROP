@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { ProTable, ProForm, ProFormText, ProFormDigit, ProFormSelect, ProFormSwitch } from '@ant-design/pro-components'
-import { Button, Modal, message, Card, Space, Tag, Tooltip, Image, Row, Col, Statistic } from 'antd'
+import { Button, Modal, Card, Space, Tag, Tooltip, Image, Row, Col, Statistic, App } from 'antd'
 import { PlusOutlined, QrcodeOutlined, EditOutlined, DeleteOutlined, PrinterOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ActionType, ProColumns } from '@ant-design/pro-components'
 import { useTablesStore } from '../../stores/tables-store'
@@ -10,7 +10,8 @@ import { Table } from '../../types/tables'
 import { ProTableWrapper, AntdHydrationSafe, getConsistentProTableProps } from '@/lib/hydration-fix'
 import QRCode from 'qrcode'
 
-export default function TablesPage() {
+function TablesPage() {
+  const { message } = App.useApp()
   const [createModalVisible, setCreateModalVisible] = useState(false)
   const [editModalVisible, setEditModalVisible] = useState(false)
   const [qrModalVisible, setQrModalVisible] = useState(false)
@@ -125,9 +126,19 @@ export default function TablesPage() {
     }
   }
 
+  // Helper function to clear edit modal state
+  const clearEditModal = () => {
+    setEditModalVisible(false)
+    setSelectedTable(null)
+  }
+
   const handleEdit = (table: Table) => {
-    setSelectedTable(table)
-    setEditModalVisible(true)
+    // Clear previous selection first
+    setSelectedTable(null)
+    setTimeout(() => {
+      setSelectedTable(table)
+      setEditModalVisible(true)
+    }, 10)
   }
 
   const handleUpdate = async (values: any) => {
@@ -135,8 +146,7 @@ export default function TablesPage() {
       if (selectedTable) {
         await updateTable(selectedTable.id, values)
         message.success('میز با موفقیت به‌روزرسانی شد')
-        setEditModalVisible(false)
-        setSelectedTable(null)
+        clearEditModal()
         actionRef.current?.reload()
       }
     } catch (error: any) {
@@ -353,12 +363,12 @@ export default function TablesPage() {
         <ProForm
           onFinish={handleCreate}
           submitter={{
-            render: (props) => (
+            render: (_, dom) => (
               <Space>
                 <Button onClick={() => setCreateModalVisible(false)}>
                   انصراف
                 </Button>
-                <Button type="primary" onClick={() => props.form?.submit()}>
+                <Button type="primary" htmlType="submit">
                   ایجاد میز
                 </Button>
               </Space>
@@ -445,27 +455,22 @@ export default function TablesPage() {
       <Modal
         title="ویرایش میز"
         open={editModalVisible}
-        onCancel={() => {
-          setEditModalVisible(false)
-          setSelectedTable(null)
-        }}
+        onCancel={clearEditModal}
         footer={null}
         width={600}
       >
         {selectedTable && (
           <ProForm
+            key={selectedTable.id}
             initialValues={selectedTable}
             onFinish={handleUpdate}
             submitter={{
-              render: (props) => (
+              render: (_, dom) => (
                 <Space>
-                  <Button onClick={() => {
-                    setEditModalVisible(false)
-                    setSelectedTable(null)
-                  }}>
+                  <Button onClick={clearEditModal}>
                     انصراف
                   </Button>
-                  <Button type="primary" onClick={() => props.form?.submit()}>
+                  <Button type="primary" htmlType="submit">
                     به‌روزرسانی
                   </Button>
                 </Space>
@@ -584,3 +589,13 @@ export default function TablesPage() {
     </AntdHydrationSafe>
   )
 }
+
+const WrappedTablesPage = () => {
+  return (
+    <App>
+      <TablesPage />
+    </App>
+  )
+}
+
+export default WrappedTablesPage

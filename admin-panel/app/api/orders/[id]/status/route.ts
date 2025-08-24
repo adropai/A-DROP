@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { OrderStatus } from '@prisma/client'
 
 interface UpdateStatusRequest {
   status: string
@@ -11,81 +13,36 @@ export async function PATCH(
 ) {
   try {
     const { status, notes }: UpdateStatusRequest = await request.json()
-    const orderId = params.id
+    const orderId = Number(params.id)
 
-    // Validate status
-    const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'completed', 'cancelled']
-    if (!validStatuses.includes(status)) {
+    const normalized = String(status).toUpperCase()
+    if (!(normalized in OrderStatus)) {
       return NextResponse.json(
         { error: 'وضعیت نامعتبر است' },
         { status: 400 }
       )
     }
 
-    // Get current order
-    const orderResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${orderId}`)
-    if (!orderResponse.ok) {
-      return NextResponse.json(
-        { error: 'سفارش یافت نشد' },
-        { status: 404 }
-      )
-    }
-
-    const order = await orderResponse.json()
-
-    // Prepare update data
-    const updateData: any = {
-      status,
-      updatedAt: new Date().toISOString()
-    }
-
-    // Add timestamp based on status
-    switch (status) {
-      case 'confirmed':
-        updateData.confirmedAt = new Date().toISOString()
-        break
-      case 'preparing':
-        updateData.preparingAt = new Date().toISOString()
-        break
-      case 'ready':
-        updateData.readyAt = new Date().toISOString()
-        break
-      case 'delivered':
-        updateData.deliveredAt = new Date().toISOString()
-        break
-      case 'completed':
-        updateData.completedAt = new Date().toISOString()
-        break
-    }
-
-    if (notes) {
-      updateData.statusNotes = notes
-    }
-
-    // Update order in database
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${orderId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updateData)
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: normalized as OrderStatus,
+        notes: notes ?? undefined,
+      },
+      include: { items: { include: { menuItem: true } } }
     })
 
-    if (!response.ok) {
-      throw new Error('Failed to update order')
-    }
-
-    const updatedOrder = await response.json()
-
     // Send notification to kitchen if status is preparing
-    if (status === 'preparing') {
+  if (normalized === 'PREPARING') {
       try {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/kitchen/orders`, {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/kitchen/orders`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            orderId: orderId,
-            items: order.items,
-            priority: order.priority || 'normal',
-            notes: order.notes
+      orderId: String(updated.id),
+      items: updated.items,
+      priority: (updated as any).priority || 'NORMAL',
+      notes: updated.notes
           })
         })
       } catch (error) {
@@ -95,17 +52,17 @@ export async function PATCH(
     }
 
     // Send notification to customer if status is ready or delivered
-    if (status === 'ready' || status === 'delivered') {
+    if (normalized === 'READY' || normalized === 'SERVED') {
       try {
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'order_status',
-            customerId: order.customerId,
-            orderId: orderId,
-            status: status,
-            message: status === 'ready' ? 
+            customerId: (updated as any).customerId,
+            orderId: String(updated.id),
+            status: normalized,
+            message: normalized === 'READY' ? 
               'سفارش شما آماده است' : 
               'سفارش شما تحویل داده شد'
           })
@@ -118,7 +75,12 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      order: updatedOrder,
+      order: {
+        id: String(updated.id),
+        orderNumber: updated.orderNumber,
+        status: updated.status,
+        updatedAt: updated.updatedAt.toISOString(),
+      },
       message: 'وضعیت سفارش با موفقیت بروزرسانی شد'
     })
 

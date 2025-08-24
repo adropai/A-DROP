@@ -78,10 +78,10 @@ export const useAnalyticsStore = create<AnalyticsStore>((set, get) => ({
   fetchSalesData: async (startDate, endDate, period) => {
     set({ loading: true, error: null })
     try {
-      const response = await fetch(`/api/analytics/sales?startDate=${startDate}&endDate=${endDate}&period=${period}`)
+      const response = await fetch(`/api/analytics?type=sales&startDate=${startDate}&endDate=${endDate}&period=${period}`)
       if (!response.ok) throw new Error('Failed to fetch sales data')
-      const salesData = await response.json()
-      set({ salesData, loading: false })
+      const result = await response.json()
+      set({ salesData: result.data, loading: false })
     } catch (error) {
       set({ error: (error as Error).message, loading: false })
     }
@@ -90,10 +90,14 @@ export const useAnalyticsStore = create<AnalyticsStore>((set, get) => ({
   fetchRevenueData: async (startDate, endDate, period) => {
     set({ loading: true, error: null })
     try {
-      const response = await fetch(`/api/analytics/revenue?startDate=${startDate}&endDate=${endDate}&period=${period}`)
+      const response = await fetch(`/api/analytics?type=overview&startDate=${startDate}&endDate=${endDate}`)
       if (!response.ok) throw new Error('Failed to fetch revenue data')
-      const revenueData = await response.json()
-      set({ revenueData, loading: false })
+      const result = await response.json()
+      set({ 
+        revenueData: result.data.salesData,
+        orderStats: result.data.overview,
+        loading: false 
+      })
     } catch (error) {
       set({ error: (error as Error).message, loading: false })
     }
@@ -102,10 +106,10 @@ export const useAnalyticsStore = create<AnalyticsStore>((set, get) => ({
   fetchOrderStats: async (startDate, endDate) => {
     set({ loading: true, error: null })
     try {
-      const response = await fetch(`/api/analytics/order-stats?startDate=${startDate}&endDate=${endDate}`)
+      const response = await fetch(`/api/analytics?type=overview&startDate=${startDate}&endDate=${endDate}`)
       if (!response.ok) throw new Error('Failed to fetch order stats')
-      const orderStats = await response.json()
-      set({ orderStats, loading: false })
+      const result = await response.json()
+      set({ orderStats: result.data.overview, loading: false })
     } catch (error) {
       set({ error: (error as Error).message, loading: false })
     }
@@ -114,10 +118,10 @@ export const useAnalyticsStore = create<AnalyticsStore>((set, get) => ({
   fetchCustomerStats: async (startDate, endDate) => {
     set({ loading: true, error: null })
     try {
-      const response = await fetch(`/api/analytics/customer-stats?startDate=${startDate}&endDate=${endDate}`)
+      const response = await fetch(`/api/analytics?type=customers&startDate=${startDate}&endDate=${endDate}`)
       if (!response.ok) throw new Error('Failed to fetch customer stats')
-      const customerStats = await response.json()
-      set({ customerStats, loading: false })
+      const result = await response.json()
+      set({ customerStats: result.data, loading: false })
     } catch (error) {
       set({ error: (error as Error).message, loading: false })
     }
@@ -126,10 +130,10 @@ export const useAnalyticsStore = create<AnalyticsStore>((set, get) => ({
   fetchPopularItems: async (startDate, endDate) => {
     set({ loading: true, error: null })
     try {
-      const response = await fetch(`/api/analytics/popular-items?startDate=${startDate}&endDate=${endDate}`)
+      const response = await fetch(`/api/analytics?type=overview&startDate=${startDate}&endDate=${endDate}`)
       if (!response.ok) throw new Error('Failed to fetch popular items')
-      const popularItems = await response.json()
-      set({ popularItems, loading: false })
+      const result = await response.json()
+      set({ popularItems: result.data.popularItems, loading: false })
     } catch (error) {
       set({ error: (error as Error).message, loading: false })
     }

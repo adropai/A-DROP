@@ -1,844 +1,1068 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { 
-  ProTable, 
-  ProCard, 
-  Statistic, 
-  ProForm,
-  ProFormText,
-  ProFormSelect,
-  ProFormTextArea,
-  ProFormDigit,
-  QueryFilter
-} from '@ant-design/pro-components'
-import { 
+  Card, 
+  Tabs, 
   Button, 
-  Tag, 
-  Space, 
-  Tooltip, 
+  Table, 
   Modal, 
-  message, 
-  Drawer,
-  Steps,
+  Form, 
+  Input, 
+  Select, 
+  Space, 
+  Tag, 
+  Popconfirm, 
+  Avatar, 
+  Badge,
+  Typography,
   Row,
   Col,
-  Badge,
-  Avatar,
-  Typography,
-  Alert,
+  Statistic,
+  Divider,
   App
 } from 'antd'
 import { 
-  CarOutlined,
+  PlusOutlined, 
+  EditOutlined, 
+  DeleteOutlined, 
   UserOutlined,
   PhoneOutlined,
+  CarOutlined,
   EnvironmentOutlined,
   ClockCircleOutlined,
-  DollarOutlined,
-  StarFilled,
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  EyeOutlined
+  CheckCircleOutlined,
+  ExclamationCircleOutlined
 } from '@ant-design/icons'
-import { useDeliveryStore } from '@/stores/delivery-store'
-import { 
-  Delivery, 
-  Courier, 
-  DeliveryStatus,
-  CourierStatus,
-  CourierForm,
-  getDeliveryStatusLabel,
-  getDeliveryStatusColor,
-  getCourierStatusLabel,
-  getCourierStatusColor
-} from '@/types/delivery'
-import { ProTableWrapper, AntdHydrationSafe, getConsistentProTableProps } from '@/lib/hydration-fix'
+import { PageContainer } from '@ant-design/pro-components'
 
 const { Title, Text } = Typography
+const { Option } = Select
+
+// Types
+interface Courier {
+  id: string
+  name: string
+  phone: string
+  email?: string
+  avatar?: string
+  vehicleType: string
+  vehicleDetails?: string
+  status: string
+  currentLocation?: string
+  currentLatitude?: number
+  currentLongitude?: number
+  isActive: boolean
+  rating: number
+  totalDeliveries: number
+  successfulDeliveries: number
+  createdAt: string
+  updatedAt: string
+  deliveries?: any[]
+  stats?: {
+    pendingOrders: number
+    activeOrders: number
+    totalActiveOrders: number
+  }
+}
+
+interface Customer {
+  id: string
+  name: string
+  phone: string
+  email?: string
+}
+
+interface Address {
+  id: string
+  street: string
+  city: string
+  state: string
+  zipCode: string
+}
+
+interface Delivery {
+  id: string
+  orderId: string
+  courierId?: string
+  status: string
+  deliveryAddress: string | Address
+  estimatedDeliveryTime?: string
+  actualDeliveryTime?: string
+  totalAmount: number
+  createdAt: string
+  updatedAt: string
+  customer?: Customer
+  courier?: Courier
+}
+
+// Styled wrapper for better layout
+const ProTableWrapper = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px' }}>
+    {children}
+  </div>
+)
+
+// Helper function to handle safe hydration
+const AntdHydrationSafe: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isClient, setIsClient] = useState(false)
+  
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+  
+  if (!isClient) {
+    return <div>Loading...</div>
+  }
+  
+  return <>{children}</>
+}
 
 const DeliveryPage: React.FC = () => {
-  const { modal } = App.useApp()
-  const {
-    deliveries,
-    couriers,
-    stats,
-    loading,
-    error,
-    fetchDeliveries,
-    fetchCouriers,
-    fetchStats,
-    createDelivery,
-    updateDelivery,
-    assignCourier,
-    updateDeliveryStatus,
-    createCourier,
-    updateCourier
-  } = useDeliveryStore()
-
-  const [isDeliveryModalVisible, setIsDeliveryModalVisible] = useState(false)
-  const [isCourierModalVisible, setIsCourierModalVisible] = useState(false)
-  const [isCourierEditVisible, setIsCourierEditVisible] = useState(false)
-  const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null)
+  const { message } = App.useApp();
+  // States
+  const [couriers, setCouriers] = useState<Courier[]>([])
+  const [deliveries, setDeliveries] = useState<Delivery[]>([])
+  const [loading, setLoading] = useState(false)
+  const [editModalVisible, setEditModalVisible] = useState(false)
+  const [addModalVisible, setAddModalVisible] = useState(false)
+  const [statusModalVisible, setStatusModalVisible] = useState(false)
+  const [assignCourierModalVisible, setAssignCourierModalVisible] = useState(false)
+  const [selectedDeliveryForAssign, setSelectedDeliveryForAssign] = useState<Delivery | null>(null)
+  const [selectedCourierId, setSelectedCourierId] = useState<string>('')
   const [selectedCourier, setSelectedCourier] = useState<Courier | null>(null)
-  const [isDetailDrawerVisible, setIsDetailDrawerVisible] = useState(false)
-  const [deliveryForm] = ProForm.useForm()
-  const [courierForm] = ProForm.useForm()
-  const [courierEditForm] = ProForm.useForm()
+  const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null)
+  const [newStatus, setNewStatus] = useState<string>('')
+  const [activeTab, setActiveTab] = useState('couriers')
+  
+  // Courier assignment states
+  const [isAssignModalVisible, setIsAssignModalVisible] = useState(false)
+  const [selectedOrderForAssign, setSelectedOrderForAssign] = useState<Delivery | null>(null)
+  
+  // Details modal states
+  const [isDetailsModalVisible, setIsDetailsModalVisible] = useState(false)
+  const [selectedDeliveryForDetails, setSelectedDeliveryForDetails] = useState<Delivery | null>(null)
 
-  // Load data on mount
-  useEffect(() => {
-    fetchDeliveries()
-    fetchCouriers()
-    fetchStats()
-  }, [fetchDeliveries, fetchCouriers, fetchStats])
+  // Forms
+  const [form] = Form.useForm()
+  const [addForm] = Form.useForm()
+  const [courierAssignForm] = Form.useForm()
 
-  // Handle delivery status change
-  const handleStatusChange = async (deliveryId: string, newStatus: DeliveryStatus) => {
+  // Fetch data functions
+  const fetchCouriers = useCallback(async () => {
     try {
-      await updateDeliveryStatus(deliveryId, newStatus)
-      message.success('وضعیت تحویل به‌روزرسانی شد')
-    } catch (error) {
-      message.error('خطا در به‌روزرسانی وضعیت')
-    }
-  }
-
-  // Handle courier assignment
-  const handleAssignCourier = async (deliveryId: string, courierId: string) => {
-    try {
-      await assignCourier({ deliveryId, courierId })
-      message.success('پیک با موفقیت تخصیص داده شد')
-    } catch (error) {
-      message.error('خطا در تخصیص پیک')
-    }
-  }
-
-  // Handle courier edit
-  const handleEditCourier = (courier: Courier) => {
-    setSelectedCourier(courier)
-    courierEditForm.setFieldsValue(courier)
-    setIsCourierEditVisible(true)
-  }
-
-  // Handle courier edit submit
-  const handleCourierEditSubmit = async (values: any) => {
-    if (!selectedCourier) return
-
-    try {
-      await updateCourier(selectedCourier.id, values)
-      message.success('اطلاعات پیک به‌روزرسانی شد')
-      setSelectedCourier(null)
-      setIsCourierEditVisible(false)
-      courierEditForm.resetFields()
-      fetchCouriers()
-    } catch (error) {
-      message.error('خطا در به‌روزرسانی اطلاعات پیک')
-      console.error('Error updating courier:', error)
-    }
-  }
-
-  // Handle courier delete
-  const handleDeleteCourier = (courierId: string) => {
-    modal.confirm({
-      title: 'حذف پیک',
-      content: 'آیا مطمئن هستید که می‌خواهید این پیک را حذف کنید؟',
-      okText: 'بله، حذف کن',
-      cancelText: 'انصراف',
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          // await deleteCourier(courierId)
-          message.success('پیک با موفقیت حذف شد')
-          fetchCouriers()
-        } catch (error) {
-          message.error('خطا در حذف پیک')
-        }
+      setLoading(true)
+      console.log('🔍 Fetching couriers...')
+      const response = await fetch('/api/delivery/couriers')
+      const data = await response.json()
+      console.log('📋 Couriers data received:', data)
+      
+      if (data.couriers) {
+        setCouriers(data.couriers)
+        console.log(`✅ Set ${data.couriers.length} couriers`)
+      } else {
+        console.warn('⚠️ No couriers field in response')
+        setCouriers([])
       }
-    })
+    } catch (error) {
+      console.error('❌ Error fetching couriers:', error)
+      message.error('خطا در دریافت اطلاعات پیک‌ها')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const fetchDeliveries = useCallback(async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/delivery/orders')
+      const data = await response.json()
+      if (data.success) {
+        setDeliveries(data.deliveries || [])
+      }
+    } catch (error) {
+      console.error('Error fetching deliveries:', error)
+      message.error('خطا در دریافت اطلاعات تحویل')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchCouriers()
+    fetchDeliveries()
+  }, [fetchCouriers, fetchDeliveries])
+
+  // Courier handlers
+  const handleEditCourier = async () => {
+    try {
+      const values = await form.validateFields()
+      if (!selectedCourier) return
+
+      const response = await fetch(`/api/delivery/couriers/${selectedCourier.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values)
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        message.success('پیک با موفقیت ویرایش شد')
+        setEditModalVisible(false)
+        fetchCouriers()
+      } else {
+        message.error(data.message || 'خطا در ویرایش پیک')
+      }
+    } catch (error) {
+      message.error('خطا در ویرایش پیک')
+    }
   }
 
-  // Delivery table columns
-  const deliveryColumns = [
+  const handleAddCourier = async () => {
+    try {
+      const values = await addForm.validateFields()
+      
+      const response = await fetch('/api/delivery/couriers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values)
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        message.success('پیک جدید اضافه شد')
+        setAddModalVisible(false)
+        addForm.resetFields()
+        fetchCouriers()
+      } else {
+        message.error(data.message || 'خطا در افزودن پیک')
+      }
+    } catch (error) {
+      message.error('خطا در افزودن پیک')
+    }
+  }
+
+  const handleDeleteCourier = async (id: string) => {
+    try {
+      const response = await fetch(`/api/delivery/couriers/${id}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        message.success('پیک حذف شد')
+        fetchCouriers()
+      } else {
+        message.error(data.message || 'خطا در حذف پیک')
+      }
+    } catch (error) {
+      message.error('خطا در حذف پیک')
+    }
+  }
+
+  // Delivery status handler
+  const handleStatusUpdate = async () => {
+    try {
+      if (!selectedDelivery || !newStatus) return
+
+      const response = await fetch(`/api/delivery/${selectedDelivery.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        message.success('وضعیت تحویل بروزرسانی شد')
+        setStatusModalVisible(false)
+        fetchDeliveries()
+      } else {
+        message.error(data.message || 'خطا در بروزرسانی وضعیت')
+      }
+    } catch (error) {
+      message.error('خطا در بروزرسانی وضعیت')
+    }
+  }
+
+  // Assign courier to delivery
+  const handleAssignCourier = async () => {
+    try {
+      if (!selectedDeliveryForAssign || !selectedCourierId) {
+        message.error('لطفاً پیک را انتخاب کنید')
+        return
+      }
+
+      console.log('🚚 Assigning courier:', selectedCourierId, 'to delivery:', selectedDeliveryForAssign.id)
+
+      const response = await fetch(`/api/delivery/${selectedDeliveryForAssign.id}/assign`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          courierId: selectedCourierId 
+        })
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        message.success('پیک با موفقیت اختصاص داده شد')
+        setAssignCourierModalVisible(false)
+        setSelectedDeliveryForAssign(null)
+        setSelectedCourierId('')
+        fetchDeliveries()
+        fetchCouriers() // برای بروزرسانی وضعیت پیک‌ها
+      } else {
+        message.error(data.message || 'خطا در اختصاص پیک')
+      }
+    } catch (error) {
+      console.error('❌ Error assigning courier:', error)
+      message.error('خطا در اختصاص پیک')
+    }
+  }
+
+  // Handler for new courier assignment modal
+  const handleCourierAssign = async (values: { courierId: string; notes?: string }) => {
+    try {
+      if (!selectedOrderForAssign) {
+        message.error('سفارش انتخاب نشده است')
+        return
+      }
+
+      setLoading(true)
+      
+      const response = await fetch(`/api/delivery/${selectedOrderForAssign.id}/assign`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          courierId: values.courierId,
+          notes: values.notes 
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        message.success('پیک با موفقیت اختصاص داده شد')
+        setIsAssignModalVisible(false)
+        setSelectedOrderForAssign(null)
+        courierAssignForm.resetFields()
+        fetchDeliveries()
+        fetchCouriers()
+      } else {
+        message.error(data.message || 'خطا در اختصاص پیک')
+      }
+    } catch (error) {
+      console.error('❌ Error assigning courier:', error)
+      message.error('خطا در ارتباط با سرور')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Table columns for couriers
+  const courierColumns: ColumnsType<Courier> = [
     {
-      title: 'کد تحویل',
-      dataIndex: 'trackingCode',
-      key: 'trackingCode',
-      width: 120,
-      render: (code: string) => (
-        <Text strong style={{ color: '#1890ff' }}>{code}</Text>
-      )
-    },
-    {
-      title: 'مشتری',
-      dataIndex: ['customer', 'name'],
-      key: 'customer',
-      width: 150,
-      render: (_: any, record: Delivery) => (
+      title: 'نام پیک',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name: string) => (
         <Space>
-          <Avatar size="small" icon={<UserOutlined />} />
-          <div>
-            <Text strong>{record.customer?.name}</Text>
-            <br />
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              {record.customer?.phone}
-            </Text>
-          </div>
+          <Avatar icon={<UserOutlined />} />
+          <span style={{ fontWeight: 'bold' }}>{name}</span>
         </Space>
       )
     },
     {
-      title: 'سفارش',
-      dataIndex: 'orderId',
-      key: 'order',
-      width: 100,
-      render: (_: any, record: Delivery) => (
-        <div>
-          <Text>#{record.orderId}</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            {record.totalAmount?.toLocaleString()} تومان
-          </Text>
-        </div>
+      title: 'شماره تلفن',
+      dataIndex: 'phone',
+      key: 'phone',
+      render: (phone: string) => (
+        <Space>
+          <PhoneOutlined />
+          <span>{phone}</span>
+        </Space>
       )
     },
     {
-      title: 'پیک',
-      dataIndex: ['courier', 'name'],
-      key: 'courier',
-      width: 150,
-      render: (_: any, record: Delivery) => {
-        if (!record.courier) {
-          return (
-            <Button 
-              size="small" 
-              type="dashed"
-              onClick={() => {
-                modal.confirm({
-                  title: 'انتخاب پیک',
-                  content: (
-                    <ProFormSelect
-                      name="courierId"
-                      placeholder="پیک را انتخاب کنید"
-                      options={couriers
-                        .filter(c => c.status === 'AVAILABLE')
-                        .map(c => ({
-                          label: `${c.name} (${getCourierStatusLabel(c.status)})`,
-                          value: c.id
-                        }))}
-                    />
-                  ),
-                  onOk: (courierId) => {
-                    if (courierId) {
-                      handleAssignCourier(record.id, courierId)
-                    }
-                  }
-                })
-              }}
-            >
-              تخصیص پیک
-            </Button>
-          )
+      title: 'نوع وسیله نقلیه',
+      dataIndex: 'vehicleType',
+      key: 'vehicleType',
+      render: (vehicleType: string) => {
+        const typeMap = {
+          'MOTORCYCLE': { icon: <CarOutlined />, text: 'موتورسیکلت' },
+          'CAR': { icon: <CarOutlined />, text: 'خودرو' },
+          'BICYCLE': { icon: <CarOutlined />, text: 'دوچرخه' },
+          'WALKING': { icon: <UserOutlined />, text: 'پیاده' },
+          'motorcycle': { icon: <CarOutlined />, text: 'موتورسیکلت' },
+          'car': { icon: <CarOutlined />, text: 'خودرو' },
+          'bicycle': { icon: <CarOutlined />, text: 'دوچرخه' }
         }
+        const typeInfo = typeMap[vehicleType as keyof typeof typeMap] || { icon: <CarOutlined />, text: vehicleType }
         return (
           <Space>
-            <Avatar size="small" icon={<CarOutlined />} />
-            <div>
-              <Text strong>{record.courier.name}</Text>
-              <br />
-              <Tag color={getCourierStatusColor(record.courier.status)}>
-                {getCourierStatusLabel(record.courier.status)}
-              </Tag>
-            </div>
+            {typeInfo.icon}
+            <span>{typeInfo.text}</span>
           </Space>
         )
       }
     },
     {
-      title: 'آدرس تحویل',
-      dataIndex: ['deliveryAddress', 'street'],
-      key: 'address',
+      title: 'وضعیت',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => {
+        const statusMap = {
+          'AVAILABLE': { color: 'green', text: 'آماده' },
+          'BUSY': { color: 'orange', text: 'مشغول' },
+          'OFFLINE': { color: 'red', text: 'غیرفعال' }
+        }
+        const statusInfo = statusMap[status as keyof typeof statusMap] || { color: 'default', text: status }
+        return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>
+      }
+    },
+    {
+      title: 'عملیات',
+      key: 'actions',
       width: 200,
-      ellipsis: true,
-      render: (_: any, record: Delivery) => (
-        <Tooltip title={`${record.deliveryAddress?.street}, ${record.deliveryAddress?.city}`}>
-          <Text>{record.deliveryAddress?.street}</Text>
-        </Tooltip>
+      render: (_, record: Courier) => (
+        <Space>
+          <Button 
+            type="primary" 
+            size="small" 
+            icon={<EditOutlined />}
+            onClick={() => {
+              setSelectedCourier(record)
+              form.setFieldsValue(record)
+              setEditModalVisible(true)
+            }}
+          >
+            ویرایش
+          </Button>
+          <Popconfirm
+            title="آیا مطمئن هستید؟"
+            onConfirm={() => handleDeleteCourier(record.id)}
+            okText="بله"
+            cancelText="خیر"
+          >
+            <Button type="primary" danger size="small" icon={<DeleteOutlined />}>
+              حذف
+            </Button>
+          </Popconfirm>
+        </Space>
       )
+    }
+  ]
+
+  // Table columns for active deliveries
+  const activeDeliveryColumns: ColumnsType<Delivery> = [
+    {
+      title: 'شماره سفارش',
+      dataIndex: 'orderId',
+      key: 'orderId',
+      width: 120,
+      render: (orderId: string) => <Tag color="blue">#{orderId}</Tag>
+    },
+    {
+      title: 'مشتری',
+      dataIndex: 'customer',
+      key: 'customer',
+      width: 200,
+      render: (customer: Customer) => (
+        <Space>
+          <Avatar icon={<UserOutlined />} />
+          <div>
+            <div style={{ fontWeight: 'bold' }}>{customer?.name || 'مشتری نامشخص'}</div>
+            <div style={{ fontSize: '12px', color: '#666' }}>
+              <PhoneOutlined style={{ marginRight: 4 }} />
+              {customer?.phone || 'شماره نامشخص'}
+            </div>
+          </div>
+        </Space>
+      )
+    },
+    {
+      title: 'آدرس تحویل',
+      dataIndex: 'deliveryAddress',
+      key: 'deliveryAddress',
+      width: 250,
+      render: (address: string | Address) => (
+        <Space>
+          <EnvironmentOutlined />
+          <span>{typeof address === 'string' ? address : `${address?.street}, ${address?.city}`}</span>
+        </Space>
+      )
+    },
+    {
+      title: 'پیک',
+      dataIndex: 'courier',
+      key: 'courier',
+      width: 150,
+      render: (courier: Courier) => courier ? (
+        <Space>
+          <Avatar icon={<UserOutlined />} />
+          <span>{courier.name}</span>
+        </Space>
+      ) : <Text type="secondary">اختصاص نداده شده</Text>
     },
     {
       title: 'وضعیت',
       dataIndex: 'status',
       key: 'status',
       width: 120,
-      render: (status: DeliveryStatus, record: Delivery) => (
-        <Tag color={getDeliveryStatusColor(status)}>
-          {getDeliveryStatusLabel(status)}
-        </Tag>
-      )
+      render: (status: string) => {
+        const statusMap = {
+          'PENDING': { color: 'orange', text: 'در انتظار' },
+          'ASSIGNED': { color: 'blue', text: 'اختصاص داده شده' },
+          'DISPATCHED': { color: 'purple', text: 'در راه' },
+          'DELIVERED': { color: 'green', text: 'تحویل شده' },
+          'CANCELLED': { color: 'red', text: 'لغو شده' }
+        }
+        const statusInfo = statusMap[status as keyof typeof statusMap] || { color: 'default', text: status }
+        return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>
+      }
     },
     {
-      title: 'زمان ایجاد',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 120,
-      render: (date: string) => new Date(date).toLocaleDateString('fa-IR')
+      title: 'مبلغ',
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
+      width: 100,
+      render: (amount: number) => `${amount?.toLocaleString()} تومان`
     },
     {
       title: 'عملیات',
       key: 'actions',
-      width: 150,
-      render: (_: any, record: Delivery) => (
+      width: 200,
+      render: (_, record: Delivery) => (
         <Space>
-          <Tooltip title="جزئیات">
-            <Button
-              type="text"
+          {!record.courierId && (
+            <Button 
+              type="primary" 
               size="small"
-              icon={<EyeOutlined />}
+              icon={<UserOutlined />}
               onClick={() => {
-                setSelectedDelivery(record)
-                setIsDetailDrawerVisible(true)
+                setSelectedOrderForAssign(record)
+                setIsAssignModalVisible(true)
               }}
-            />
-          </Tooltip>
-          <Tooltip title="ویرایش">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => {
-                setSelectedDelivery(record)
-                setIsDeliveryModalVisible(true)
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="حذف">
-            <Button
-              type="text"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => {
-                modal.confirm({
-                  title: 'حذف تحویل',
-                  content: 'آیا از حذف این تحویل اطمینان دارید؟',
-                  okText: 'حذف',
-                  cancelText: 'انصراف',
-                  onOk: () => {
-                    message.success('تحویل حذف شد')
-                  }
-                })
-              }}
-            />
-          </Tooltip>
+            >
+              اختصاص پیک
+            </Button>
+          )}
+          <Button 
+            type="default" 
+            size="small"
+            onClick={() => {
+              setSelectedDelivery(record)
+              setNewStatus(record.status)
+              setStatusModalVisible(true)
+            }}
+          >
+            تغییر وضعیت
+          </Button>
+          <Button 
+            type="default" 
+            size="small"
+            onClick={() => {
+              setSelectedDeliveryForDetails(record)
+              setIsDetailsModalVisible(true)
+            }}
+          >
+            جزئیات
+          </Button>
         </Space>
       )
     }
   ]
 
-  // Status steps for delivery tracking
-  const getStatusSteps = (status: DeliveryStatus) => {
-    const statuses: DeliveryStatus[] = ['PENDING', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED']
-    const currentIndex = statuses.indexOf(status)
-    const stepStatus = (index: number): "wait" | "error" | "finish" | "process" => {
-      if (index < currentIndex) return "finish"
-      if (index === currentIndex) return "process"
-      return "wait"
+  // Table columns for completed deliveries
+  const completedDeliveryColumns: ColumnsType<Delivery> = [
+    {
+      title: 'شماره سفارش',
+      dataIndex: 'orderId',
+      key: 'orderId',
+      width: 120,
+      render: (orderId: string) => <Tag color="blue">#{orderId}</Tag>
+    },
+    {
+      title: 'مشتری',
+      dataIndex: 'customer',
+      key: 'customer',
+      width: 200,
+      render: (customer: Customer) => (
+        <Space>
+          <Avatar icon={<UserOutlined />} />
+          <div>
+            <div style={{ fontWeight: 'bold' }}>{customer?.name || 'مشتری نامشخص'}</div>
+          </div>
+        </Space>
+      )
+    },
+    {
+      title: 'پیک',
+      dataIndex: 'courier',
+      key: 'courier',
+      width: 150,
+      render: (courier: Courier) => courier ? (
+        <Space>
+          <Avatar icon={<UserOutlined />} />
+          <span>{courier.name}</span>
+        </Space>
+      ) : <Text type="secondary">اختصاص نداده شده</Text>
+    },
+    {
+      title: 'وضعیت',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status: string) => {
+        const statusMap = {
+          'DELIVERED': { color: 'green', text: 'تحویل شده' },
+          'CANCELLED': { color: 'red', text: 'لغو شده' }
+        }
+        const statusInfo = statusMap[status as keyof typeof statusMap] || { color: 'default', text: status }
+        return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>
+      }
+    },
+    {
+      title: 'مبلغ',
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
+      width: 100,
+      render: (amount: number) => `${amount?.toLocaleString()} تومان`
+    },
+    {
+      title: 'تاریخ تحویل',
+      dataIndex: 'actualDeliveryTime',
+      key: 'actualDeliveryTime',
+      width: 150,
+      render: (deliveredAt: string) => (
+        <Space>
+          <ClockCircleOutlined />
+          <span>{deliveredAt ? new Date(deliveredAt).toLocaleDateString('fa-IR') : 'نامشخص'}</span>
+        </Space>
+      )
+    },
+    {
+      title: 'عملیات',
+      key: 'actions',
+      width: 120,
+      render: (_, record: Delivery) => (
+        <Button 
+          type="default" 
+          size="small"
+          onClick={() => {
+            setSelectedDeliveryForDetails(record)
+            setIsDetailsModalVisible(true)
+          }}
+        >
+          جزئیات
+        </Button>
+      )
     }
-    return statuses.map((s, index) => ({
-      title: getDeliveryStatusLabel(s),
-      status: stepStatus(index)
-    }))
-  }
+  ]
+
+  // Statistics
+  const availableCouriers = couriers.filter(c => c.status === 'AVAILABLE').length
+  const busyCouriers = couriers.filter(c => c.status === 'BUSY').length
+  const activeDeliveries = deliveries.filter(d => 
+    d.status !== 'DELIVERED' && d.status !== 'CANCELLED'
+  ).length
+  const completedDeliveries = deliveries.filter(d => 
+    d.status === 'DELIVERED' || d.status === 'CANCELLED'
+  ).length
+
+  const tabItems = [
+    {
+      key: 'couriers',
+      label: (
+        <span>
+          👤 مدیریت پیک‌ها
+          <Badge count={couriers.length} style={{ backgroundColor: '#1890ff', marginLeft: 8 }} />
+        </span>
+      ),
+      children: (
+        <div>
+          {/* Statistics Cards */}
+          <Row gutter={16} style={{ marginBottom: 24 }}>
+            <Col span={8}>
+              <Card>
+                <Statistic
+                  title="پیک‌های آماده"
+                  value={availableCouriers}
+                  valueStyle={{ color: '#3f8600' }}
+                  prefix={<CheckCircleOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card>
+                <Statistic
+                  title="پیک‌های مشغول"
+                  value={busyCouriers}
+                  valueStyle={{ color: '#cf1322' }}
+                  prefix={<ExclamationCircleOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card>
+                <Statistic
+                  title="کل پیک‌ها"
+                  value={couriers.length}
+                  valueStyle={{ color: '#1890ff' }}
+                  prefix={<UserOutlined />}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          <ProTableWrapper>
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Title level={4}>لیست پیک‌ها</Title>
+              <Space>
+                <Button 
+                  type="default"
+                  onClick={() => {
+                    console.log('🧪 Testing data fetch...')
+                    fetchCouriers()
+                    fetchDeliveries()
+                  }}
+                >
+                  🔄 تست دریافت داده‌ها
+                </Button>
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />}
+                  onClick={() => setAddModalVisible(true)}
+                >
+                  افزودن پیک جدید
+                </Button>
+              </Space>
+            </div>
+            <Table
+              columns={courierColumns}
+              dataSource={couriers}
+              rowKey="id"
+              loading={loading}
+              pagination={{
+                defaultPageSize: 10,
+                showQuickJumper: true,
+                showTotal: (total) => `مجموع ${total} پیک`
+              }}
+            />
+          </ProTableWrapper>
+        </div>
+      )
+    },
+    {
+      key: 'active-deliveries',
+      label: (
+        <span>
+          🚚 تحویل سفارش
+          <Badge count={activeDeliveries} style={{ backgroundColor: '#faad14', marginLeft: 8 }} />
+        </span>
+      ),
+      children: (
+        <div>
+          <ProTableWrapper>
+            <div style={{ marginBottom: 16 }}>
+              <Title level={4}>سفارشات فعال</Title>
+              <Text type="secondary">سفارشاتی که در حال پردازش یا تحویل هستند</Text>
+            </div>
+            <Table
+              columns={activeDeliveryColumns}
+              dataSource={deliveries.filter(d => 
+                d.status !== 'DELIVERED' && d.status !== 'CANCELLED'
+              )}
+              rowKey="id"
+              loading={loading}
+              pagination={{
+                defaultPageSize: 10,
+                showQuickJumper: true,
+                showTotal: (total) => `مجموع ${total} سفارش فعال`
+              }}
+            />
+          </ProTableWrapper>
+        </div>
+      )
+    },
+    {
+      key: 'completed-deliveries',
+      label: (
+        <span>
+          ✅ سفارشات تحویل شده
+          <Badge count={completedDeliveries} style={{ backgroundColor: '#52c41a', marginLeft: 8 }} />
+        </span>
+      ),
+      children: (
+        <div>
+          <ProTableWrapper>
+            <div style={{ marginBottom: 16 }}>
+              <Title level={4}>سفارشات تحویل شده</Title>
+              <Text type="secondary">سفارشات تحویل شده و لغو شده</Text>
+            </div>
+            <Table
+              columns={completedDeliveryColumns}
+              dataSource={deliveries.filter(d => 
+                d.status === 'DELIVERED' || d.status === 'CANCELLED'
+              )}
+              rowKey="id"
+              loading={loading}
+              pagination={{
+                defaultPageSize: 10,
+                showQuickJumper: true,
+                showTotal: (total) => `مجموع ${total} سفارش تکمیل شده`
+              }}
+            />
+          </ProTableWrapper>
+        </div>
+      )
+    }
+  ]
 
   return (
     <AntdHydrationSafe>
-      <div style={{ padding: '24px' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '24px' }}>
-          <Title level={2}>🚚 مدیریت تحویل</Title>
-          <Text type="secondary">
-            مدیریت تحویلات، پیک‌ها و ردیابی سفارشات
-          </Text>
-        </div>
-
-      {/* Error Alert */}
-      {error && (
-        <Alert
-          message="خطا"
-          description={error}
-          type="error"
-          closable
-          style={{ marginBottom: '16px' }}
-          onClose={() => useDeliveryStore.getState().clearError()}
-        />
-      )}
-
-      {/* Stats Cards */}
-      {stats && (
-        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-          <Col xs={24} sm={12} md={6}>
-            <ProCard>
-              <Statistic
-                title="کل تحویلات"
-                value={stats.total}
-                prefix={<CarOutlined style={{ color: '#1890ff' }} />}
-              />
-            </ProCard>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <ProCard>
-              <Statistic
-                title="در انتظار"
-                value={stats.pending}
-                prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />}
-              />
-            </ProCard>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <ProCard>
-              <Statistic
-                title="تحویل داده شده"
-                value={stats.delivered}
-                prefix={<Badge status="success" />}
-              />
-            </ProCard>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <ProCard>
-              <Statistic
-                title="درآمد کل"
-                value={stats.totalRevenue}
-                suffix="تومان"
-                prefix={<DollarOutlined style={{ color: '#52c41a' }} />}
-              />
-            </ProCard>
-          </Col>
-        </Row>
-      )}
-
-      {/* Deliveries Table */}
-      <ProCard
-        title="لیست تحویلات"
-        extra={
-          <Space>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setSelectedDelivery(null)
-                setIsDeliveryModalVisible(true)
-              }}
-            >
-              تحویل جدید
-            </Button>
-            <Button
-              icon={<UserOutlined />}
-              onClick={() => setIsCourierModalVisible(true)}
-            >
-              مدیریت پیک‌ها
-            </Button>
-          </Space>
-        }
-      >
-        <ProTableWrapper>
-          <ProTable
-            columns={deliveryColumns}
-            dataSource={deliveries}
-            rowKey="id"
-            loading={loading}
-            {...getConsistentProTableProps()}
-          />
-        </ProTableWrapper>
-      </ProCard>
-
-      {/* Create/Edit Delivery Modal */}
-      <Modal
-        title={selectedDelivery ? 'ویرایش تحویل' : 'تحویل جدید'}
-        open={isDeliveryModalVisible}
-        onCancel={() => {
-          setIsDeliveryModalVisible(false)
-          setSelectedDelivery(null)
-          deliveryForm.resetFields()
-        }}
-        footer={null}
-        width={600}
-      >
-        <ProForm
-          form={deliveryForm}
-          onFinish={async (values) => {
-            try {
-              if (selectedDelivery) {
-                await updateDelivery(selectedDelivery.id, values)
-                message.success('تحویل به‌روزرسانی شد')
-              } else {
-                await createDelivery(values)
-                message.success('تحویل جدید ایجاد شد')
-              }
-              setIsDeliveryModalVisible(false)
-              deliveryForm.resetFields()
-              setSelectedDelivery(null)
-            } catch (error) {
-              message.error('خطا در ذخیره تحویل')
+      <div style={{ padding: '24px', backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
+        <PageContainer
+          header={{
+            title: 'مدیریت تحویل و پیک‌ها',
+            breadcrumb: {
+              items: [
+                { title: 'داشبورد' },
+                { title: 'مدیریت تحویل' }
+              ]
             }
           }}
-          initialValues={selectedDelivery}
         >
-          <ProFormText
-            name="orderId"
-            label="شماره سفارش"
-            placeholder="شماره سفارش را وارد کنید"
-            rules={[{ required: true, message: 'شماره سفارش الزامی است' }]}
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            type="card"
+            size="large"
+            items={tabItems}
           />
-          <ProFormText
-            name="customerId"
-            label="شناسه مشتری"
-            placeholder="شناسه مشتری را وارد کنید"
-            rules={[{ required: true, message: 'شناسه مشتری الزامی است' }]}
-          />
-          <ProFormSelect
-            name="type"
-            label="نوع تحویل"
-            placeholder="نوع تحویل را انتخاب کنید"
-            options={[
-              { label: 'پیک فرستی', value: 'DELIVERY' },
-              { label: 'تحویل حضوری', value: 'PICKUP' },
-              { label: 'صرف در محل', value: 'DINE_IN' }
-            ]}
-            rules={[{ required: true, message: 'نوع تحویل الزامی است' }]}
-          />
-          <ProFormDigit
-            name="deliveryFee"
-            label="هزینه تحویل"
-            placeholder="هزینه تحویل (تومان)"
-            min={0}
-            rules={[{ required: true, message: 'هزینه تحویل الزامی است' }]}
-          />
-          <ProFormSelect
-            name="priority"
-            label="اولویت"
-            placeholder="اولویت را انتخاب کنید"
-            options={[
-              { label: 'عادی', value: 1 },
-              { label: 'سریع', value: 2 },
-              { label: 'فوری', value: 3 }
-            ]}
-            initialValue={1}
-          />
-          <ProFormTextArea
-            name="instructions"
-            label="توضیحات"
-            placeholder="توضیحات تکمیلی برای تحویل"
-          />
-        </ProForm>
-      </Modal>
+        </PageContainer>
 
-      {/* Courier Management Modal */}
-      <Modal
-        title="مدیریت پیک‌ها"
-        open={isCourierModalVisible}
-        onCancel={() => setIsCourierModalVisible(false)}
-        footer={null}
-        width={800}
-      >
-        <ProTable
-          columns={[
-            {
-              title: 'نام',
-              dataIndex: 'name',
-              key: 'name'
-            },
-            {
-              title: 'تلفن',
-              dataIndex: 'phone',
-              key: 'phone'
-            },
-            {
-              title: 'وسیله نقلیه',
-              dataIndex: 'vehicleType',
-              key: 'vehicleType',
-              render: (type: string) => {
-                const labels = {
-                  BIKE: 'دوچرخه',
-                  MOTORCYCLE: 'موتورسیکلت',
-                  CAR: 'ماشین',
-                  WALKING: 'پیاده'
+        {/* Modals */}
+        <Modal
+          title="ویرایش پیک"
+          open={editModalVisible}
+          onOk={handleEditCourier}
+          onCancel={() => setEditModalVisible(false)}
+          width={600}
+        >
+          <Form form={form} layout="vertical">
+            <Form.Item name="name" label="نام پیک" rules={[{ required: true, message: 'نام پیک الزامی است' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="phone" label="شماره تلفن" rules={[{ required: true, message: 'شماره تلفن الزامی است' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="vehicleType" label="نوع وسیله نقلیه">
+              <Select>
+                <Option value="motorcycle">موتورسیکلت</Option>
+                <Option value="bicycle">دوچرخه</Option>
+                <Option value="car">خودرو</Option>
+              </Select>
+            </Form.Item>
+            <Form.Item name="status" label="وضعیت">
+              <Select>
+                <Option value="AVAILABLE">آماده</Option>
+                <Option value="BUSY">مشغول</Option>
+                <Option value="OFFLINE">غیرفعال</Option>
+              </Select>
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title="افزودن پیک جدید"
+          open={addModalVisible}
+          onOk={handleAddCourier}
+          onCancel={() => setAddModalVisible(false)}
+          width={600}
+        >
+          <Form form={addForm} layout="vertical">
+            <Form.Item name="name" label="نام پیک" rules={[{ required: true, message: 'نام پیک الزامی است' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="phone" label="شماره تلفن" rules={[{ required: true, message: 'شماره تلفن الزامی است' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="vehicleType" label="نوع وسیله نقلیه" initialValue="motorcycle">
+              <Select>
+                <Option value="motorcycle">موتورسیکلت</Option>
+                <Option value="bicycle">دوچرخه</Option>
+                <Option value="car">خودرو</Option>
+              </Select>
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title="تغییر وضعیت تحویل"
+          open={statusModalVisible}
+          onOk={handleStatusUpdate}
+          onCancel={() => setStatusModalVisible(false)}
+          width={400}
+        >
+          {selectedDelivery && (
+            <div>
+              <p><strong>سفارش:</strong> #{selectedDelivery.orderId}</p>
+              <p><strong>وضعیت فعلی:</strong> {selectedDelivery.status}</p>
+              <Divider />
+              <Form.Item label="وضعیت جدید">
+                <Select value={newStatus} onChange={setNewStatus}>
+                  <Option value="PENDING">در انتظار</Option>
+                  <Option value="ASSIGNED">اختصاص داده شده</Option>
+                  <Option value="DISPATCHED">در راه</Option>
+                  <Option value="DELIVERED">تحویل شده</Option>
+                  <Option value="CANCELLED">لغو شده</Option>
+                </Select>
+              </Form.Item>
+            </div>
+          )}
+        </Modal>
+
+        {/* Modal for Courier Assignment */}
+        <Modal
+          title="اختصاص پیک به سفارش"
+          open={isAssignModalVisible}
+          onCancel={() => {
+            setIsAssignModalVisible(false)
+            setSelectedOrderForAssign(null)
+            courierAssignForm.resetFields()
+          }}
+          onOk={() => courierAssignForm.submit()}
+          confirmLoading={loading}
+          width={600}
+        >
+          <Form
+            form={courierAssignForm}
+            layout="vertical"
+            onFinish={handleCourierAssign}
+          >
+            <Form.Item
+              name="courierId"
+              label="انتخاب پیک"
+              rules={[{ required: true, message: 'لطفا یک پیک انتخاب کنید' }]}
+            >
+              <Select
+                placeholder="پیک مورد نظر را انتخاب کنید"
+                allowClear
+                showSearch
+                filterOption={(input, option) =>
+                  String(option?.children || '').toLowerCase().indexOf(input.toLowerCase()) >= 0
                 }
-                return labels[type as keyof typeof labels] || type
-              }
-            },
-            {
-              title: 'وضعیت',
-              dataIndex: 'status',
-              key: 'status',
-              render: (status: CourierStatus, record: Courier) => {
-                const statusOptions = [
-                  { label: 'آماده', value: 'AVAILABLE', color: 'success' },
-                  { label: 'مشغول', value: 'BUSY', color: 'processing' },
-                  { label: 'آفلاین', value: 'OFFLINE', color: 'default' }
-                ]
-                
-                return (
-                  <Tag 
-                    color={getCourierStatusColor(status)}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => {
-                      // چرخش وضعیت: AVAILABLE -> BUSY -> OFFLINE -> AVAILABLE
-                      const currentIndex = statusOptions.findIndex(opt => opt.value === status)
-                      const nextIndex = (currentIndex + 1) % statusOptions.length
-                      const newStatus = statusOptions[nextIndex].value as CourierStatus
-                      
-                      // فراخوانی API برای تغییر وضعیت
-                      updateCourier(record.id, { status: newStatus } as Partial<CourierForm>)
-                        .then(() => {
-                          message.success(`وضعیت پیک به "${statusOptions[nextIndex].label}" تغییر یافت`)
-                          fetchCouriers()
-                        })
-                        .catch(() => {
-                          message.error('خطا در تغییر وضعیت پیک')
-                        })
-                    }}
-                  >
-                    {getCourierStatusLabel(status)}
-                  </Tag>
-                )
-              }
-            },
-            {
-              title: 'امتیاز',
-              dataIndex: 'rating',
-              key: 'rating',
-              render: (rating: number) => (
-                <Space>
-                  <StarFilled style={{ color: '#faad14' }} />
-                  <Text>{rating?.toFixed(1)}</Text>
-                </Space>
-              )
-            },
-            {
-              title: 'عملیات',
-              key: 'actions',
-              render: (_: any, record: Courier) => (
-                <Space>
-                  <Tooltip title="ویرایش پیک">
-                    <Button
-                      type="text"
-                      icon={<EditOutlined />}
-                      size="small"
-                      onClick={() => handleEditCourier(record)}
-                    />
-                  </Tooltip>
-                  <Tooltip title="حذف پیک">
-                    <Button
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      size="small"
-                      onClick={() => handleDeleteCourier(record.id)}
-                    />
-                  </Tooltip>
-                </Space>
-              )
-            }
-          ]}
-          dataSource={couriers}
-          rowKey="id"
-          pagination={false}
-          size="small"
-          search={false}
-          toolBarRender={() => [
-            <Button
-              key="add"
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                modal.confirm({
-                  title: 'افزودن پیک جدید',
-                  content: (
-                    <ProForm
-                      onFinish={async (values: any) => {
-                        try {
-                          await createCourier(values as CourierForm)
-                          message.success('پیک جدید اضافه شد')
-                          return true
-                        } catch (error) {
-                          message.error('خطا در افزودن پیک')
-                          return false
-                        }
-                      }}
-                    >
-                      <ProFormText
-                        name="name"
-                        label="نام"
-                        rules={[{ required: true }]}
-                      />
-                      <ProFormText
-                        name="phone"
-                        label="تلفن"
-                        rules={[{ required: true }]}
-                      />
-                      <ProFormSelect
-                        name="vehicleType"
-                        label="وسیله نقلیه"
-                        placeholder="وسیله نقلیه را انتخاب کنید"
-                        options={[
-                          { label: 'دوچرخه', value: 'BIKE' },
-                          { label: 'موتورسیکلت', value: 'MOTORCYCLE' },
-                          { label: 'ماشین', value: 'CAR' },
-                          { label: 'پیاده', value: 'WALKING' }
-                        ]}
-                        rules={[{ required: true }]}
-                      />
-                    </ProForm>
-                  ),
-                  width: 500
-                })
-              }}
+              >
+                {couriers
+                  .filter(courier => courier.status === 'AVAILABLE')
+                  .map(courier => (
+                    <Select.Option key={courier.id} value={courier.id}>
+                      {courier.name} - {courier.phone}
+                    </Select.Option>
+                  ))}
+              </Select>
+            </Form.Item>
+            
+            <Form.Item
+              name="notes"
+              label="یادداشت (اختیاری)"
             >
-              افزودن پیک
+              <Input.TextArea
+                rows={3}
+                placeholder="یادداشت برای پیک..."
+              />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        {/* Modal for Delivery Details */}
+        <Modal
+          title="جزئیات سفارش تحویل"
+          open={isDetailsModalVisible}
+          onCancel={() => {
+            setIsDetailsModalVisible(false)
+            setSelectedDeliveryForDetails(null)
+          }}
+          footer={[
+            <Button key="close" onClick={() => setIsDetailsModalVisible(false)}>
+              بستن
             </Button>
           ]}
-        />
-      </Modal>
-
-      {/* Delivery Detail Drawer */}
-      <Drawer
-        title="جزئیات تحویل"
-        placement="right"
-        onClose={() => setIsDetailDrawerVisible(false)}
-        open={isDetailDrawerVisible}
-        width={500}
-      >
-        {selectedDelivery && (
-          <div>
-            <Steps
-              direction="vertical"
-              size="small"
-              current={getStatusSteps(selectedDelivery.status).findIndex(s => s.status === 'process')}
-              items={getStatusSteps(selectedDelivery.status)}
-              style={{ marginBottom: '24px' }}
-            />
-            
-            <ProCard title="اطلاعات مشتری" size="small" style={{ marginBottom: '16px' }}>
-              <Space direction="vertical">
-                <Text><UserOutlined /> {selectedDelivery.customer?.name}</Text>
-                <Text><PhoneOutlined /> {selectedDelivery.customer?.phone}</Text>
-              </Space>
-            </ProCard>
-
-            {selectedDelivery.courier && (
-              <ProCard title="اطلاعات پیک" size="small" style={{ marginBottom: '16px' }}>
-                <Space direction="vertical">
-                  <Text><UserOutlined /> {selectedDelivery.courier.name}</Text>
-                  <Text><PhoneOutlined /> {selectedDelivery.courier.phone}</Text>
-                  <Text><CarOutlined /> {selectedDelivery.courier.vehicleType}</Text>
-                </Space>
-              </ProCard>
-            )}
-
-            <ProCard title="آدرس تحویل" size="small" style={{ marginBottom: '16px' }}>
-              <Text>
-                <EnvironmentOutlined /> {selectedDelivery.deliveryAddress?.street}, {selectedDelivery.deliveryAddress?.city}
-              </Text>
-            </ProCard>
-
-            <ProCard title="جزئیات مالی" size="small">
-              <Space direction="vertical">
-                <Text>هزینه تحویل: {selectedDelivery.deliveryFee?.toLocaleString()} تومان</Text>
-                <Text>مبلغ کل: {selectedDelivery.totalAmount?.toLocaleString()} تومان</Text>
-              </Space>
-            </ProCard>
-          </div>
-        )}
-      </Drawer>
-
-      {/* Drawer ویرایش پیک */}
-      <Drawer
-        title="ویرایش اطلاعات پیک"
-        width={500}
-        open={isCourierEditVisible}
-        onClose={() => {
-          setIsCourierEditVisible(false)
-          setSelectedCourier(null)
-          courierEditForm.resetFields()
-        }}
-        destroyOnClose
-      >
-        <ProForm
-          form={courierEditForm}
-          layout="vertical"
-          onFinish={handleCourierEditSubmit}
-          submitter={{
-            searchConfig: {
-              submitText: 'ذخیره تغییرات',
-              resetText: 'انصراف'
-            },
-            resetButtonProps: {
-              onClick: () => {
-                setIsCourierEditVisible(false)
-                setSelectedCourier(null)
-                courierEditForm.resetFields()
-              }
-            }
-          }}
+          width={800}
         >
-          <ProFormText
-            name="name"
-            label="نام پیک"
-            placeholder="نام پیک را وارد کنید"
-            rules={[{ required: true, message: 'نام الزامی است' }]}
-          />
-          <ProFormText
-            name="phone"
-            label="شماره تلفن"
-            placeholder="شماره تلفن را وارد کنید"
-            rules={[
-              { required: true, message: 'شماره تلفن الزامی است' },
-              { pattern: /^09\d{9}$/, message: 'شماره تلفن نامعتبر است' }
-            ]}
-          />
-          <ProFormText
-            name="email"
-            label="ایمیل"
-            placeholder="آدرس ایمیل را وارد کنید"
-            rules={[
-              { type: 'email', message: 'فرمت ایمیل نامعتبر است' }
-            ]}
-          />
-          <ProFormSelect
-            name="vehicleType"
-            label="نوع وسیله نقلیه"
-            placeholder="نوع وسیله نقلیه را انتخاب کنید"
-            options={[
-              { label: 'دوچرخه', value: 'BIKE' },
-              { label: 'موتورسیکلت', value: 'MOTORCYCLE' },
-              { label: 'ماشین', value: 'CAR' },
-              { label: 'پیاده', value: 'WALKING' }
-            ]}
-            rules={[{ required: true, message: 'نوع وسیله نقلیه الزامی است' }]}
-          />
-          <ProFormText
-            name="vehicleNumber"
-            label="شماره پلاک"
-            placeholder="شماره پلاک وسیله نقلیه"
-          />
-          <ProFormSelect
-            name="status"
-            label="وضعیت پیک"
-            placeholder="وضعیت پیک را انتخاب کنید"
-            options={[
-              { label: 'آماده', value: 'AVAILABLE' },
-              { label: 'مشغول', value: 'BUSY' },
-              { label: 'آفلاین', value: 'OFFLINE' }
-            ]}
-            rules={[{ required: true, message: 'وضعیت الزامی است' }]}
-          />
-        </ProForm>
-      </Drawer>
-
+          {selectedDeliveryForDetails && (
+            <div>
+              <Row gutter={[16, 16]}>
+                <Col span={12}>
+                  <Card size="small" title="اطلاعات سفارش">
+                    <p><strong>شماره سفارش:</strong> #{selectedDeliveryForDetails.orderId}</p>
+                    <p><strong>آدرس تحویل:</strong> {typeof selectedDeliveryForDetails.deliveryAddress === 'string' 
+                      ? selectedDeliveryForDetails.deliveryAddress 
+                      : `${selectedDeliveryForDetails.deliveryAddress.street}, ${selectedDeliveryForDetails.deliveryAddress.city}`}</p>
+                    <p><strong>مبلغ:</strong> {selectedDeliveryForDetails.totalAmount?.toLocaleString()} تومان</p>
+                    {selectedDeliveryForDetails.customer && (
+                      <p><strong>تلفن مشتری:</strong> {selectedDeliveryForDetails.customer.phone}</p>
+                    )}
+                  </Card>
+                </Col>
+                <Col span={12}>
+                  <Card size="small" title="وضعیت تحویل">
+                    <p><strong>وضعیت:</strong> 
+                      <Tag color={
+                        selectedDeliveryForDetails.status === 'PENDING' ? 'orange' :
+                        selectedDeliveryForDetails.status === 'ASSIGNED' ? 'blue' :
+                        selectedDeliveryForDetails.status === 'DISPATCHED' ? 'purple' :
+                        selectedDeliveryForDetails.status === 'DELIVERED' ? 'green' :
+                        selectedDeliveryForDetails.status === 'CANCELLED' ? 'red' : 'default'
+                      } style={{ marginRight: '8px' }}>
+                        {selectedDeliveryForDetails.status === 'PENDING' ? 'در انتظار' :
+                         selectedDeliveryForDetails.status === 'ASSIGNED' ? 'اختصاص داده شده' :
+                         selectedDeliveryForDetails.status === 'DISPATCHED' ? 'در راه' :
+                         selectedDeliveryForDetails.status === 'DELIVERED' ? 'تحویل شده' :
+                         selectedDeliveryForDetails.status === 'CANCELLED' ? 'لغو شده' : selectedDeliveryForDetails.status}
+                      </Tag>
+                    </p>
+                    <p><strong>تاریخ ایجاد:</strong> {new Date(selectedDeliveryForDetails.createdAt).toLocaleDateString('fa-IR')}</p>
+                    {selectedDeliveryForDetails.estimatedDeliveryTime && (
+                      <p><strong>زمان تخمینی تحویل:</strong> {new Date(selectedDeliveryForDetails.estimatedDeliveryTime).toLocaleDateString('fa-IR')}</p>
+                    )}
+                    {selectedDeliveryForDetails.actualDeliveryTime && (
+                      <p><strong>زمان واقعی تحویل:</strong> {new Date(selectedDeliveryForDetails.actualDeliveryTime).toLocaleDateString('fa-IR')}</p>
+                    )}
+                  </Card>
+                </Col>
+                <Col span={24}>
+                  <Card size="small" title="اطلاعات پیک">
+                    {selectedDeliveryForDetails.courier ? (
+                      <div>
+                        <p><strong>نام پیک:</strong> {selectedDeliveryForDetails.courier.name}</p>
+                        <p><strong>تلفن پیک:</strong> {selectedDeliveryForDetails.courier.phone}</p>
+                        <p><strong>وضعیت پیک:</strong> 
+                          <Tag color={selectedDeliveryForDetails.courier.status === 'AVAILABLE' ? 'green' : 'orange'} style={{ marginRight: '8px' }}>
+                            {selectedDeliveryForDetails.courier.status === 'AVAILABLE' ? 'آزاد' : 'مشغول'}
+                          </Tag>
+                        </p>
+                      </div>
+                    ) : (
+                      <p style={{ color: '#999' }}>هنوز پیکی اختصاص داده نشده است</p>
+                    )}
+                  </Card>
+                </Col>
+              </Row>
+            </div>
+          )}
+        </Modal>
       </div>
     </AntdHydrationSafe>
   )
 }
 
-export default DeliveryPage
+const WrappedDeliveryPage: React.FC = () => {
+  return (
+    <App>
+      <DeliveryPage />
+    </App>
+  )
+}
+
+export default WrappedDeliveryPage

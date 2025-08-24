@@ -153,6 +153,7 @@ export interface DeliveryFilter {
   maxAmount?: number
   priority?: number[]
   rating?: number
+  limit?: number
 }
 
 // فرم ایجاد تحویل
@@ -186,6 +187,7 @@ export interface CourierForm {
   vehicleType: VehicleType
   vehicleNumber?: string
   licenseNumber?: string
+  status?: CourierStatus
 }
 
 // فرم آدرس
@@ -206,7 +208,8 @@ export interface AddressForm {
 export interface AssignCourierRequest {
   deliveryId: string
   courierId: string
-  estimatedTime?: number
+  estimatedDeliveryTime?: Date
+  notes?: string
 }
 
 // گزارش تحویل

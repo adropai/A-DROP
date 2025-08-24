@@ -40,6 +40,8 @@ interface InventoryStore {
   // Actions - Categories
   fetchCategories: () => Promise<void>
   createCategory: (data: Partial<InventoryCategory>) => Promise<InventoryCategory | null>
+  updateCategory: (id: string, data: Partial<InventoryCategory>) => Promise<InventoryCategory | null>
+  deleteCategory: (id: string) => Promise<boolean>
 
   // Actions - Movements
   fetchMovements: (itemId?: string) => Promise<void>
@@ -145,6 +147,8 @@ export const useInventoryStore = create<InventoryStore>()(
         set({ loading: true, error: null })
         
         try {
+          console.log('📦 Store: Creating item with data:', data);
+          
           const response = await fetch('/api/inventory', {
             method: 'POST',
             headers: {
@@ -153,18 +157,25 @@ export const useInventoryStore = create<InventoryStore>()(
             body: JSON.stringify(data),
           })
 
-          const result = await response.json()
+          console.log('📦 Store: Response status:', response.status);
+          console.log('📦 Store: Response ok:', response.ok);
 
-          if (result.success) {
+          const result = await response.json()
+          console.log('📦 Store: Response data:', result);
+
+          if (response.ok && result.success) {
+            console.log('✅ Store: Item created successfully');
             // بازیابی لیست برای به‌روزرسانی
             await get().fetchItems()
             await get().fetchStats()
             return result.data
           } else {
-            set({ error: result.error })
+            console.error('❌ Store: Item creation failed:', result);
+            set({ error: result.message || result.error || 'خطا در ایجاد آیتم' })
             return null
           }
         } catch (error) {
+          console.error('❌ Store: Network error:', error);
           set({ error: 'خطا در ایجاد آیتم انبار' })
           return null
         } finally {
@@ -277,6 +288,58 @@ export const useInventoryStore = create<InventoryStore>()(
         } catch (error) {
           set({ error: 'خطا در ایجاد دسته‌بندی' })
           return null
+        }
+      },
+
+      updateCategory: async (id: string, data: Partial<InventoryCategory>) => {
+        try {
+          const response = await fetch(`/api/inventory/categories/${id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+          })
+
+          const result = await response.json()
+
+          if (result.success) {
+            set(state => ({
+              categories: state.categories.map(cat => 
+                cat.id === id ? { ...cat, ...result.data } : cat
+              )
+            }))
+            return result.data
+          } else {
+            set({ error: result.error })
+            return null
+          }
+        } catch (error) {
+          set({ error: 'خطا در بروزرسانی دسته‌بندی' })
+          return null
+        }
+      },
+
+      deleteCategory: async (id: string) => {
+        try {
+          const response = await fetch(`/api/inventory/categories/${id}`, {
+            method: 'DELETE',
+          })
+
+          const result = await response.json()
+
+          if (result.success) {
+            set(state => ({
+              categories: state.categories.filter(cat => cat.id !== id)
+            }))
+            return true
+          } else {
+            set({ error: result.error })
+            return false
+          }
+        } catch (error) {
+          set({ error: 'خطا در حذف دسته‌بندی' })
+          return false
         }
       },
 

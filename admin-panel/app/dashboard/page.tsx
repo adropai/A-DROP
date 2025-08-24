@@ -46,6 +46,7 @@ const { useBreakpoint } = Grid
 
 const Dashboard = () => {
   const [dateRange, setDateRange] = useState(null)
+  const [currentTime, setCurrentTime] = useState<string>('')
   const { stats, orders, loading, error, lastUpdate, refreshData, updateOrderStatus } = useDashboardDataOptimized()
   const [realTimeStats, setRealTimeStats] = useState({
     activeUsers: 0,
@@ -59,6 +60,9 @@ const Dashboard = () => {
   
   // Real-time data simulation (در آینده با WebSocket جایگزین می‌شود)
   useEffect(() => {
+    // حل مشکل Hydration Error
+    setCurrentTime(dayjs().format('HH:mm:ss'))
+    
     const interval = setInterval(() => {
       setRealTimeStats({
         activeUsers: Math.floor(Math.random() * 50) + 10,
@@ -66,6 +70,7 @@ const Dashboard = () => {
         kitchenQueue: Math.floor(Math.random() * 8) + 2,
         deliveryQueue: Math.floor(Math.random() * 12) + 3
       })
+      setCurrentTime(dayjs().format('HH:mm:ss'))
     }, 30000) // هر 30 ثانیه بروزرسانی
 
     return () => clearInterval(interval)
@@ -218,7 +223,7 @@ const Dashboard = () => {
                     🏪 داشبرد مدیریت A-DROP
                   </Title>
                   <Text type="secondary">
-                    خوش آمدید! آخرین بروزرسانی: {typeof lastUpdate === 'string' ? lastUpdate : dayjs().format('HH:mm:ss')}
+                    خوش آمدید! آخرین بروزرسانی: {currentTime || 'در حال بارگذاری...'}
                   </Text>
                 </Col>
                 <Col>
@@ -299,7 +304,7 @@ const Dashboard = () => {
                           border: `2px solid ${item.color}20`,
                           backgroundColor: `${item.color}05`
                         }}
-                        bodyStyle={{ padding: '16px 8px' }}
+                        styles={{ body: { padding: '16px 8px' } }}
                       >
                         <Badge count={item.badge || 0} offset={[10, 0]}>
                           <div style={{ fontSize: '28px', color: item.color, marginBottom: 8 }}>
@@ -413,7 +418,7 @@ const Dashboard = () => {
                         type="circle"
                         percent={item.value}
                         strokeColor={item.color}
-                        width={80}
+                        size={80}
                         format={percent => `${percent}%`}
                       />
                       <div style={{ marginTop: 8 }}>
@@ -485,7 +490,7 @@ const Dashboard = () => {
                       <Badge status="processing" />
                     </Tooltip>
                     <Text type="secondary">
-                      آخرین فعالیت: {dayjs().format('HH:mm')}
+                      آخرین فعالیت: {currentTime ? currentTime.slice(0, 5) : 'در حال بارگذاری...'}
                     </Text>
                   </Space>
                 </Col>

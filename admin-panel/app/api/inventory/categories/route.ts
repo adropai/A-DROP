@@ -61,7 +61,6 @@ export async function POST(request: NextRequest) {
       data: {
         name: body.name,
         description: body.description,
-        color: body.color || '#1890ff',
         isActive: body.isActive ?? true
       }
     });

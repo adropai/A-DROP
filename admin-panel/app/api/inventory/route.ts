@@ -79,32 +79,97 @@ export async function POST(request: NextRequest) {
   try {
     console.log('📦 Inventory POST API called');
     const body = await request.json();
-    console.log('📦 Request body:', body);
+    console.log('📦 Request body:', JSON.stringify(body, null, 2));
+
+    // بررسی فیلدهای الزامی
+    if (!body.name) {
+      console.log('❌ Missing name field');
+      return NextResponse.json({
+        success: false,
+        message: 'نام آیتم الزامی است'
+      }, { status: 400 });
+    }
+
+    if (!body.categoryId) {
+      console.log('❌ Missing categoryId field');
+      return NextResponse.json({
+        success: false,
+        message: 'دسته‌بندی الزامی است'
+      }, { status: 400 });
+    }
+
+    // بررسی وجود category
+    const category = await prisma.inventoryCategory.findUnique({
+      where: { id: body.categoryId }
+    });
+
+    if (!category) {
+      console.log('❌ Category not found:', body.categoryId);
+      return NextResponse.json({
+        success: false,
+        message: 'دسته‌بندی انتخابی موجود نیست'
+      }, { status: 400 });
+    }
+
+    console.log('✅ Category found:', category.name);
+
+    // Parse expiry date safely
+    let parsedExpiryDate: Date | null = null;
+    if (body.expiryDate) {
+      try {
+        const tempDate = new Date(body.expiryDate);
+        // اگر تاریخ Invalid باشد
+        if (isNaN(tempDate.getTime())) {
+          console.log('❌ Invalid expiry date format:', body.expiryDate);
+          return NextResponse.json({
+            success: false,
+            message: 'فرمت تاریخ انقضا صحیح نیست'
+          }, { status: 400 });
+        }
+        parsedExpiryDate = tempDate;
+        console.log('✅ Parsed expiry date:', parsedExpiryDate);
+      } catch (error) {
+        console.log('❌ Error parsing expiry date:', error);
+        return NextResponse.json({
+          success: false,
+          message: 'خطا در پردازش تاریخ انقضا'
+        }, { status: 400 });
+      }
+    }
+
+    const itemData = {
+      name: body.name,
+      description: body.description || null,
+      categoryId: body.categoryId,
+      sku: body.sku || null,
+      unit: body.unit || 'piece',
+      currentStock: parseInt(body.currentStock) || 0,
+      minStock: parseInt(body.minStock) || 0,
+      maxStock: body.maxStock ? parseInt(body.maxStock) : null,
+      unitPrice: parseFloat(body.unitPrice) || 0,
+      supplierName: body.supplierName || null,
+      expiryDate: parsedExpiryDate,
+      status: body.status || 'IN_STOCK',
+      location: body.location || null,
+      notes: body.notes || null,
+      isActive: body.isActive ?? true
+    };
+
+    console.log('📦 Creating item with data:', JSON.stringify(itemData, null, 2));
+
+    // ابتدا تست کنیم که prisma کار می‌کند
+    console.log('Testing prisma connection...');
+    const testConnection = await prisma.inventoryCategory.findMany();
+    console.log('Categories count:', testConnection.length);
 
     const newItem = await prisma.inventoryItem.create({
-      data: {
-        name: body.name,
-        description: body.description,
-        categoryId: body.categoryId,
-        sku: body.sku,
-        unit: body.unit || 'piece',
-        currentStock: body.currentStock || 0,
-        minStock: body.minStock || 0,
-        maxStock: body.maxStock,
-        unitPrice: body.unitPrice || 0,
-        supplierName: body.supplierName,
-        expiryDate: body.expiryDate ? new Date(body.expiryDate) : null,
-        status: body.status || 'IN_STOCK',
-        location: body.location,
-        notes: body.notes,
-        isActive: body.isActive ?? true
-      },
+      data: itemData,
       include: {
         category: true
       }
     });
 
-    console.log('📦 Created inventory item:', newItem.id);
+    console.log('✅ Created inventory item:', newItem.id);
 
     return NextResponse.json({
       success: true,
@@ -114,9 +179,15 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Inventory POST error:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    if (error.stack) {
+      console.error('Error stack:', error.stack);
+    }
     return NextResponse.json({
       success: false,
-      message: 'خطا در ایجاد آیتم انبار'
+      message: 'خطا در ایجاد آیتم انبار',
+      error: error.message || 'Unknown error'
     }, { status: 500 });
   }
 }

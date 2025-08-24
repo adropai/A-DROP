@@ -76,7 +76,7 @@ export async function GET(
       doc.moveDown()
 
       // Totals
-      doc.text(`جمع آیتم‌ها: ${order.subtotal?.toLocaleString()} ﷼`)
+      doc.text(`جمع آیتم‌ها: ${order.totalAmount?.toLocaleString()} ﷼`)
       
       if (order.discount > 0) {
         doc.text(`تخفیف: -${order.discount.toLocaleString()} ﷼`)

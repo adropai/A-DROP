@@ -2,18 +2,27 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Form, Input, Checkbox, Card, message, Space, Divider, Typography } from 'antd';
+import { Button, Form, Input, Checkbox, Card, App, Space, Divider, Typography } from 'antd';
 import { UserOutlined, LockOutlined, LoginOutlined, MailOutlined } from '@ant-design/icons';
-import { useAuthStore } from '@/stores/auth-store';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 export default function LoginPage() {
+  return (
+    <App>
+      <LoginPageContent />
+    </App>
+  );
+}
+
+function LoginPageContent() {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetStep, setResetStep] = useState<'email' | 'code'>('email');
   const router = useRouter();
-  const { setUser } = useAuthStore();
+  const { login } = useAuth();
 
   const handleLogin = async (values: any) => {
     setLoading(true);
@@ -41,26 +50,9 @@ export default function LoginPage() {
       if (response.ok) {
         console.log('✅ Login successful!');
         
-        // Store token in localStorage and cookie
-        console.log('💾 Storing token...');
-        // فقط ذخیره توکن در localStorage (در صورت نیاز سمت کلاینت)
-        localStorage.setItem('auth_token', data.token);
-        
-        // DEBUG: چک کردن کوکی‌ها بعد از لاگین
-        setTimeout(() => {
-          console.log('🍪 All cookies after login:', document.cookie);
-          console.log('🔍 Looking for auth_token cookie...');
-        }, 200);
-        
-        // Update auth store directly with the data we already have
-        setUser(data.user);
+        // Use AuthProvider's login method
+        login(data.token, data.user);
         message.success(data.message);
-        
-        // ریدایرکت به داشبورد با reload کامل
-        setTimeout(() => {
-          console.log('🔄 Redirecting to dashboard...');
-          window.location.href = '/dashboard';
-        }, 500);
       } else {
         console.log('❌ Login failed:', data.message);
         message.error(data.message);
@@ -207,6 +199,27 @@ export default function LoginPage() {
              'ورود به پنل مدیریت'}
           </p>
         </div>
+
+        {!isRegisterMode && !isResetMode && (
+          <Card 
+            size="small" 
+            style={{ 
+              marginBottom: '24px', 
+              backgroundColor: '#f6ffed',
+              border: '1px solid #b7eb8f'
+            }}
+            styles={{ 
+              body: { padding: '12px 16px' }
+            }}
+          >
+            <Typography.Text strong style={{ color: '#52c41a', fontSize: '12px' }}>
+              🔑 حساب تست:
+            </Typography.Text>
+            <div style={{ marginTop: '8px', fontSize: '11px', color: '#666' }}>
+              <div>مدیر سیستم: <code>admin@adrop.com</code> / <code>admin123</code></div>
+            </div>
+          </Card>
+        )}
 
         <Form
           form={form}
@@ -397,23 +410,6 @@ export default function LoginPage() {
             )}
           </div>
         </Form>
-
-        {/* Test Users Info */}
-        <Card
-          size="small"
-          title="حساب‌های تست"
-          style={{ 
-            marginTop: '20px',
-            background: '#f8f9fa',
-            fontSize: '12px'
-          }}
-        >
-          <Space direction="vertical" size="small" style={{ width: '100%' }}>
-            <div><strong>مدیر کل:</strong> admin@adrop.com / password123</div>
-            <div><strong>سرپرست:</strong> manager@adrop.com / password123</div>
-            <div><strong>صندوقدار:</strong> cashier@adrop.com / password123</div>
-          </Space>
-        </Card>
       </Card>
     </div>
   );

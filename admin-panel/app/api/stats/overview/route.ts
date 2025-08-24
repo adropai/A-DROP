@@ -1,75 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { OrderStatus } from '@prisma/client'
+
+function getDateRange(start?: string | null, end?: string | null) {
+  if (start && end) {
+    const s = new Date(start)
+    const e = new Date(end)
+    return { gte: s, lt: e }
+  }
+  const now = new Date()
+  const s = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+  const e = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0)
+  return { gte: s, lt: e }
+}
 
 export async function GET(request: NextRequest) {
   try {
-    // شبیه‌سازی تأخیر API
-    await new Promise(resolve => setTimeout(resolve, 100))
+    const { searchParams } = new URL(request.url)
+    const start = searchParams.get('start')
+    const end = searchParams.get('end')
+    const range = getDateRange(start, end)
 
-    const stats = {
-      dailySales: {
-        amount: 12580000,
-        change: +15.3,
-        trend: 'up'
-      },
-      dailyOrders: {
-        count: 85,
-        change: +8.2,
-        trend: 'up'
-      },
-      newCustomers: {
-        count: 23,
-        change: +12.5,
-        trend: 'up'
-      },
-      satisfaction: {
-        rating: 4.8,
-        change: +0.2,
-        trend: 'up'
-      },
-      monthlyTarget: {
-        current: 75000000,
-        target: 100000000,
-        percentage: 75
-      },
-      weeklyTrend: [
-        { day: 'شنبه', sales: 12500000, orders: 85, customers: 45 },
-        { day: 'یکشنبه', sales: 8900000, orders: 62, customers: 38 },
-        { day: 'دوشنبه', sales: 15200000, orders: 95, customers: 52 },
-        { day: 'سه‌شنبه', sales: 18700000, orders: 118, customers: 67 },
-        { day: 'چهارشنبه', sales: 22100000, orders: 142, customers: 78 },
-        { day: 'پنج‌شنبه', sales: 26800000, orders: 168, customers: 89 },
-        { day: 'جمعه', sales: 31200000, orders: 195, customers: 102 }
-      ],
-      hourlySales: [
-        { hour: '09:00', sales: 850000, orders: 5 },
-        { hour: '10:00', sales: 1200000, orders: 8 },
-        { hour: '11:00', sales: 1800000, orders: 12 },
-        { hour: '12:00', sales: 3200000, orders: 22 },
-        { hour: '13:00', sales: 4100000, orders: 28 },
-        { hour: '14:00', sales: 2800000, orders: 18 },
-        { hour: '15:00', sales: 1500000, orders: 10 },
-        { hour: '16:00', sales: 900000, orders: 6 },
-        { hour: '17:00', sales: 1100000, orders: 7 },
-        { hour: '18:00', sales: 2200000, orders: 15 },
-        { hour: '19:00', sales: 3800000, orders: 25 },
-        { hour: '20:00', sales: 4500000, orders: 30 },
-        { hour: '21:00', sales: 3600000, orders: 24 },
-        { hour: '22:00', sales: 2100000, orders: 14 }
-      ],
-      orderTypes: [
-        { type: 'حضوری', value: 45 },
-        { type: 'آنلاین', value: 30 },
-        { type: 'تلفنی', value: 15 },
-        { type: 'پیک', value: 10 }
-      ],
-      lastUpdate: new Date().toISOString()
-    }
+    // Aggregations for today (or provided range)
+    const [sumAgg, countToday, byStatus] = await Promise.all([
+      prisma.order.aggregate({ _sum: { totalAmount: true }, where: { createdAt: range } }),
+      prisma.order.count({ where: { createdAt: range } }),
+      prisma.order.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+        where: { createdAt: range }
+      })
+    ])
+
+    const statusCounts: Record<string, number> = {}
+    Object.values(OrderStatus).forEach(s => { statusCounts[s] = 0 })
+    byStatus.forEach(row => { statusCounts[row.status] = row._count._all })
 
     return NextResponse.json({
       success: true,
-      data: stats
+      data: {
+        todayRevenue: Math.round(sumAgg._sum.totalAmount || 0),
+        todayOrders: countToday,
+        byStatus: statusCounts,
+        lastUpdate: new Date().toISOString()
+      }
     })
   } catch (error) {
+    console.error('Stats overview error:', error)
     return NextResponse.json(
       { 
         success: false, 

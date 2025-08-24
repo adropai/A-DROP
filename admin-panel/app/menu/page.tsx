@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { PageContainer, ProTable, ProColumns, ActionType } from '@ant-design/pro-components';
 import { 
   Button, 
@@ -14,7 +14,12 @@ import {
   Card,
   Row,
   Col,
-  Statistic
+  Statistic,
+  Typography,
+  Divider,
+  Alert,
+  Badge,
+  Tabs
 } from 'antd';
 import { 
   PlusOutlined, 
@@ -23,21 +28,36 @@ import {
   EyeOutlined,
   ShoppingCartOutlined,
   StarOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  AppstoreOutlined,
+  UnorderedListOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
 import type { MenuItem, Category, ApiResponse } from '../../types/index';
 import MenuItemForm from '../../components/menu/MenuItemForm';
 import CategoryForm from '../../components/menu/CategoryForm';
 
+const { Text, Title } = Typography;
+
 const MenuPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [itemFormVisible, setItemFormVisible] = useState(false);
   const [categoryFormVisible, setCategoryFormVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [activeTab, setActiveTab] = useState('items');
   const actionRef = useRef<ActionType>();
+
+  // آمار کلی منو
+  const [menuStats, setMenuStats] = useState({
+    totalItems: 0,
+    totalCategories: 0,
+    availableItems: 0,
+    specialItems: 0
+  });
 
   // تابع پاک‌سازی URL تصاویر
   const cleanImageUrl = (imageString: string): string[] => {
@@ -46,30 +66,25 @@ const MenuPage: React.FC = () => {
     }
     
     try {
-      // حذف escape characters اضافی
       let cleanedString = imageString;
       
-      // اگر با quote شروع می‌شود، آن را حذف کنیم
       if (cleanedString.startsWith('"') && cleanedString.endsWith('"')) {
         cleanedString = cleanedString.slice(1, -1);
       }
       
-      // حذف escape characters
       cleanedString = cleanedString.replace(/\\"/g, '"').replace(/\\\//g, '/');
       
-      // اگر JSON array است
       if (cleanedString.startsWith('[') && cleanedString.endsWith(']')) {
         const parsed = JSON.parse(cleanedString);
         if (Array.isArray(parsed)) {
           return parsed.filter(url => 
             typeof url === 'string' && 
             url.trim() !== '' && 
-            url.startsWith('/uploads/') // فقط فایل‌های آپلود شده
+            url.startsWith('/uploads/')
           );
         }
       }
       
-      // اگر یک URL ساده است و معتبر است
       if (cleanedString.startsWith('/uploads/')) {
         return [cleanedString];
       }
@@ -81,13 +96,42 @@ const MenuPage: React.FC = () => {
     }
   };
 
-  // دریافت آمار کلی منو
-  const [menuStats, setMenuStats] = useState({
-    totalItems: 0,
-    totalCategories: 0,
-    availableItems: 0,
-    specialItems: 0
-  });
+  // دریافت آیتم‌های منو از API
+  const fetchMenuItems = async (params: any) => {
+    setLoading(true);
+    try {
+      const queryParams = new URLSearchParams({
+        page: params.current?.toString() || '1',
+        limit: params.pageSize?.toString() || '10',
+        ...(params.search && { search: params.search }),
+        ...(selectedCategory && { categoryId: selectedCategory }),
+        ...(params.isAvailable !== undefined && { isAvailable: params.isAvailable }),
+        ...(params.isSpecial !== undefined && { isSpecial: params.isSpecial }),
+        sortBy: params.sortField || 'priority',
+        sortOrder: params.sortOrder === 'descend' ? 'desc' : 'asc'
+      });
+
+      const response = await fetch(`/api/menu/items?${queryParams}`);
+      const result = await response.json();
+
+      if (result.success) {
+        return {
+          data: result.data || result.items || [],
+          success: true,
+          total: result.pagination?.total || result.total || 0
+        };
+      } else {
+        message.error(result.message || 'خطا در دریافت آیتم‌های منو');
+        return { data: [], success: false, total: 0 };
+      }
+    } catch (error) {
+      message.error('خطا در ارتباط با سرور');
+      console.error('Menu items fetch error:', error);
+      return { data: [], success: false, total: 0 };
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // دریافت آمار منو از API
   const fetchMenuStats = async () => {
@@ -107,62 +151,49 @@ const MenuPage: React.FC = () => {
       }
     } catch (error) {
       message.error('خطا در دریافت آمار منو');
+      console.error('Menu stats fetch error:', error);
     }
   };
 
-  // دریافت لیست دسته‌بندی‌ها برای فیلتر
+  // دریافت لیست دسته‌بندی‌ها
   const fetchCategories = async () => {
+    setCategoriesLoading(true);
     try {
       const response = await fetch('/api/menu/categories?limit=100');
       const result = await response.json();
-      console.log('📂 Categories response:', result);
       
       if (result.success && result.categories) {
         setCategories(result.categories);
       } else {
         setCategories([]);
+        console.log('No categories found:', result);
       }
     } catch (error) {
       console.error('Categories fetch error:', error);
       message.error('خطا در دریافت دسته‌بندی‌ها');
       setCategories([]);
+    } finally {
+      setCategoriesLoading(false);
     }
   };
 
-  // دریافت آیتم‌های منو
-  const fetchMenuItems = async (params: any) => {
-    setLoading(true);
-    try {
-      const queryParams = new URLSearchParams({
-        page: params.current?.toString() || '1',
-        limit: params.pageSize?.toString() || '10',
-        ...(params.search && { search: params.search }),
-        ...(selectedCategory && { categoryId: selectedCategory }),
-        ...(params.isAvailable !== undefined && { isAvailable: params.isAvailable }),
-        ...(params.isSpecial !== undefined && { isSpecial: params.isSpecial }),
-        sortBy: params.sortField || 'priority',
-        sortOrder: params.sortOrder === 'descend' ? 'desc' : 'asc'
-      });
+  // تابع برای ایجاد ساختار درختی دسته‌بندی‌ها
+  const buildCategoryTree = (categories: Category[]): Category[] => {
+    const rootCategories = categories.filter(cat => !cat.parentId);
+    
+    const buildChildren = (parentId: string): Category[] => {
+      return categories
+        .filter(cat => cat.parentId === parentId)
+        .map(cat => ({
+          ...cat,
+          children: buildChildren(cat.id)
+        }));
+    };
 
-      const response = await fetch(`/api/menu/items?${queryParams}`);
-      const result: ApiResponse<MenuItem[]> = await response.json();
-      
-      if (result.success) {
-        return {
-          data: result.data,
-          success: true,
-          total: (result as any).pagination?.total || 0
-        };
-      } else {
-        message.error(result.message || 'خطا در دریافت آیتم‌های منو');
-        return { data: [], success: false, total: 0 };
-      }
-    } catch (error) {
-      message.error('خطا در ارتباط با سرور');
-      return { data: [], success: false, total: 0 };
-    } finally {
-      setLoading(false);
-    }
+    return rootCategories.map(cat => ({
+      ...cat,
+      children: buildChildren(cat.id)
+    }));
   };
 
   // حذف آیتم منو
@@ -171,16 +202,17 @@ const MenuPage: React.FC = () => {
       const response = await fetch(`/api/menu/items/${id}`, {
         method: 'DELETE'
       });
-      const result: ApiResponse = await response.json();
+      const result = await response.json();
 
       if (result.success) {
         message.success('آیتم منو با موفقیت حذف شد');
-        refreshData(); // بروزرسانی داده‌ها و آمار
+        refreshData();
       } else {
         message.error(result.message || 'خطا در حذف آیتم منو');
       }
     } catch (error) {
       message.error('خطا در حذف آیتم منو');
+      console.error('Delete item error:', error);
     }
   };
 
@@ -190,17 +222,25 @@ const MenuPage: React.FC = () => {
       const response = await fetch(`/api/menu/categories/${id}`, {
         method: 'DELETE'
       });
-      const result: ApiResponse = await response.json();
+      const result = await response.json();
 
       if (result.success) {
         message.success('دسته‌بندی با موفقیت حذف شد');
-        refreshData(); // بروزرسانی داده‌ها و آمار
+        refreshData();
       } else {
         message.error(result.message || 'خطا در حذف دسته‌بندی');
       }
     } catch (error) {
       message.error('خطا در حذف دسته‌بندی');
+      console.error('Delete category error:', error);
     }
+  };
+
+  // بروزرسانی داده‌ها
+  const refreshData = () => {
+    actionRef.current?.reload();
+    fetchCategories();
+    fetchMenuStats();
   };
 
   // تعریف ستون‌های جدول آیتم‌های منو
@@ -209,15 +249,15 @@ const MenuPage: React.FC = () => {
       title: 'تصویر',
       dataIndex: 'images',
       key: 'images',
-      width: 120,
+      width: 100,
       render: (dom: any, record: MenuItem) => {
         const images = cleanImageUrl(record.images || '');
         const imageUrl = images.length > 0 ? images[0] : '/placeholder-food.svg';
         
         return (
           <Image
-            width={80}
-            height={60}
+            width={70}
+            height={50}
             src={imageUrl}
             alt={record.name || "تصویر آیتم"}
             style={{ borderRadius: 6, objectFit: 'cover' }}
@@ -231,11 +271,12 @@ const MenuPage: React.FC = () => {
       title: 'نام آیتم',
       dataIndex: 'name',
       key: 'name',
+      width: 200,
       render: (dom: any, record: MenuItem) => (
         <div>
-          <div style={{ fontWeight: 'bold' }}>{record.name}</div>
+          <Text strong style={{ display: 'block' }}>{record.name}</Text>
           {record.nameEn && (
-            <div style={{ fontSize: '12px', color: '#666' }}>{record.nameEn}</div>
+            <Text type="secondary" style={{ fontSize: '12px' }}>{record.nameEn}</Text>
           )}
         </div>
       )
@@ -244,8 +285,9 @@ const MenuPage: React.FC = () => {
       title: 'دسته‌بندی',
       dataIndex: ['category', 'name'],
       key: 'category',
+      width: 120,
       render: (dom: any, record: MenuItem) => (
-        <Tag color="blue">{record.category?.name}</Tag>
+        <Tag color="blue">{record.category?.name || 'نامشخص'}</Tag>
       ),
       search: false
     },
@@ -253,19 +295,20 @@ const MenuPage: React.FC = () => {
       title: 'قیمت',
       dataIndex: 'price',
       key: 'price',
-      width: 120,
+      width: 130,
       render: (dom: any, record: MenuItem) => (
         <div>
-          <div style={{ 
+          <Text style={{ 
             textDecoration: record.discountPrice ? 'line-through' : 'none',
-            color: record.discountPrice ? '#999' : '#000'
+            color: record.discountPrice ? '#999' : '#000',
+            display: 'block'
           }}>
             {record.price?.toLocaleString()} تومان
-          </div>
+          </Text>
           {record.discountPrice && (
-            <div style={{ color: '#f5222d', fontWeight: 'bold' }}>
+            <Text style={{ color: '#f5222d', fontWeight: 'bold' }}>
               {record.discountPrice.toLocaleString()} تومان
-            </div>
+            </Text>
           )}
         </div>
       ),
@@ -279,102 +322,10 @@ const MenuPage: React.FC = () => {
       width: 120,
       render: (dom: any, record: MenuItem) => (
         <Space>
-          <ClockCircleOutlined />
-          {record.preparationTime} دقیقه
+          <ClockCircleOutlined style={{ color: '#1890ff' }} />
+          <Text>{record.preparationTime} دقیقه</Text>
         </Space>
       ),
-      search: false
-    },
-    {
-      title: 'مواد اولیه',
-      dataIndex: 'ingredients',
-      key: 'ingredients',
-      width: 200,
-      render: (dom: any, record: MenuItem) => {
-        try {
-          const ingredients = JSON.parse(record.ingredients || '[]');
-          if (!Array.isArray(ingredients) || ingredients.length === 0) {
-            return <span style={{ color: '#999' }}>-</span>;
-          }
-          
-          // Filter out invalid ingredients
-          const validIngredients = ingredients.filter((ingredient: any) => 
-            ingredient && typeof ingredient === 'string' && ingredient.trim().length > 0
-          );
-          
-          if (validIngredients.length === 0) {
-            return <span style={{ color: '#999' }}>-</span>;
-          }
-          
-          return (
-            <div style={{ maxWidth: 180 }}>
-              {validIngredients.slice(0, 3).map((ingredient: string, index: number) => {
-                const ingredientStr = String(ingredient || '').trim();
-                if (!ingredientStr) return null;
-                
-                return (
-                  <Tag key={`ingredient-${index}-${ingredientStr}`} color="green" style={{ marginBottom: 2 }}>
-                    {ingredientStr}
-                  </Tag>
-                );
-              }).filter(Boolean)}
-              {validIngredients.length > 3 && (
-                <Tooltip title={validIngredients.slice(3).map(String).join(', ')}>
-                  <Tag color="default">+{validIngredients.length - 3}</Tag>
-                </Tooltip>
-              )}
-            </div>
-          );
-        } catch (error) {
-          return <span style={{ color: '#999' }}>-</span>;
-        }
-      },
-      search: false
-    },
-    {
-      title: 'برچسب‌ها',
-      dataIndex: 'tags',
-      key: 'tags',
-      width: 200,
-      render: (dom: any, record: MenuItem) => {
-        try {
-          const tags = JSON.parse(record.tags || '[]');
-          if (!Array.isArray(tags) || tags.length === 0) {
-            return <span style={{ color: '#999' }}>-</span>;
-          }
-          
-          // Filter out invalid tags
-          const validTags = tags.filter((tag: any) => 
-            tag && typeof tag === 'string' && tag.trim().length > 0
-          );
-          
-          if (validTags.length === 0) {
-            return <span style={{ color: '#999' }}>-</span>;
-          }
-          
-          return (
-            <div style={{ maxWidth: 180 }}>
-              {validTags.slice(0, 3).map((tag: string, index: number) => {
-                const tagStr = String(tag || '').trim();
-                if (!tagStr) return null;
-                
-                return (
-                  <Tag key={`tag-${index}-${tagStr}`} color="purple" style={{ marginBottom: 2 }}>
-                    {tagStr}
-                  </Tag>
-                );
-              }).filter(Boolean)}
-              {validTags.length > 3 && (
-                <Tooltip title={validTags.slice(3).map(String).join(', ')}>
-                  <Tag color="default">+{validTags.length - 3}</Tag>
-                </Tooltip>
-              )}
-            </div>
-          );
-        } catch (error) {
-          return <span style={{ color: '#999' }}>-</span>;
-        }
-      },
       search: false
     },
     {
@@ -403,15 +354,15 @@ const MenuPage: React.FC = () => {
     {
       title: 'آمار',
       key: 'stats',
-      width: 120,
+      width: 100,
       render: (_, record: MenuItem) => (
         <Space direction="vertical" size={2}>
-          <div style={{ fontSize: '12px' }}>
+          <Text style={{ fontSize: '12px' }}>
             <StarOutlined style={{ color: '#faad14' }} /> {record.rating || 0}
-          </div>
-          <div style={{ fontSize: '12px' }}>
+          </Text>
+          <Text style={{ fontSize: '12px' }}>
             <ShoppingCartOutlined style={{ color: '#52c41a' }} /> {record.soldCount || 0}
-          </div>
+          </Text>
         </Space>
       ),
       search: false
@@ -419,18 +370,9 @@ const MenuPage: React.FC = () => {
     {
       title: 'عملیات',
       key: 'actions',
-      width: 150,
+      width: 120,
       render: (_, record: MenuItem) => (
         <Space>
-          <Tooltip title="مشاهده">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => {
-                // باز کردن مودال مشاهده جزئیات
-              }}
-            />
-          </Tooltip>
           <Tooltip title="ویرایش">
             <Button
               type="text"
@@ -447,6 +389,7 @@ const MenuPage: React.FC = () => {
             onConfirm={() => handleDeleteItem(record.id)}
             okText="بله"
             cancelText="خیر"
+            okType="danger"
           >
             <Tooltip title="حذف">
               <Button
@@ -462,23 +405,25 @@ const MenuPage: React.FC = () => {
     }
   ];
 
-  React.useEffect(() => {
-    fetchCategories();
-    fetchMenuStats(); // بارگیری آمار منو
-  }, []);
-
-  // بروزرسانی آمار بعد از تغییرات
-  const refreshData = () => {
-    actionRef.current?.reload();
-    fetchCategories();
+  // useEffect برای بارگیری اولیه داده‌ها
+  useEffect(() => {
     fetchMenuStats();
-  };
+    fetchCategories();
+  }, []);
 
   return (
     <PageContainer
       title="مدیریت منو"
       subTitle="مدیریت آیتم‌های منو و دسته‌بندی‌ها"
       extra={[
+        <Button
+          key="refresh"
+          icon={<ReloadOutlined />}
+          onClick={refreshData}
+          loading={loading || categoriesLoading}
+        >
+          بروزرسانی
+        </Button>,
         <Button
           key="add-category"
           onClick={() => {
@@ -502,157 +447,252 @@ const MenuPage: React.FC = () => {
       ]}
     >
       {/* آمار کلی منو */}
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
               title="کل آیتم‌ها"
               value={menuStats.totalItems}
-              prefix={<ShoppingCartOutlined />}
+              prefix={<ShoppingCartOutlined style={{ color: '#1890ff' }} />}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
               title="دسته‌بندی‌ها"
               value={menuStats.totalCategories}
-              prefix={<ShoppingCartOutlined />}
+              prefix={<AppstoreOutlined style={{ color: '#722ed1' }} />}
               valueStyle={{ color: '#722ed1' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
               title="آیتم‌های موجود"
               value={menuStats.availableItems}
               suffix={`از ${menuStats.totalItems}`}
               valueStyle={{ color: '#3f8600' }}
-              prefix={<ShoppingCartOutlined />}
+              prefix={<ShoppingCartOutlined style={{ color: '#3f8600' }} />}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
               title="آیتم‌های ویژه"
               value={menuStats.specialItems}
               suffix={`از ${menuStats.totalItems}`}
               valueStyle={{ color: '#cf1322' }}
-              prefix={<StarOutlined />}
+              prefix={<StarOutlined style={{ color: '#cf1322' }} />}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* مدیریت دسته‌بندی‌ها */}
-      <Card title="مدیریت دسته‌بندی‌ها" style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]}>
-          {categories && categories.length > 0 ? categories.map(category => (
-            <Col span={6} key={category.id}>
-              <Card
-                size="small"
-                title={category.name}
-                extra={
-                  <Space>
-                    <Button
-                      type="text"
-                      icon={<EditOutlined />}
-                      onClick={() => {
-                        setEditingCategory(category);
-                        setCategoryFormVisible(true);
-                      }}
-                    />
-                    <Popconfirm
-                      title="حذف دسته‌بندی"
-                      description="آیا از حذف این دسته‌بندی اطمینان دارید؟"
-                      onConfirm={() => handleDeleteCategory(category.id)}
-                      okText="بله"
-                      cancelText="خیر"
-                    >
-                      <Button
-                        type="text"
-                        danger
-                        icon={<DeleteOutlined />}
-                      />
-                    </Popconfirm>
-                  </Space>
-                }
-              >
-                <p>{category.description || 'بدون توضیح'}</p>
-              </Card>
-            </Col>
-          )) : (
-            <Col span={24}>
-              <div style={{ textAlign: 'center', padding: '20px' }}>
-                <p>هیچ دسته‌بندی‌ای موجود نیست</p>
-              </div>
-            </Col>
-          )}
-        </Row>
-      </Card>
-
-      {/* فیلترهای اضافی */}
+      {/* تب‌های اصلی */}
       <Card style={{ marginBottom: 16 }}>
-        <Row gutter={16}>
-          <Col span={8}>
-            <Select
-              placeholder="انتخاب دسته‌بندی"
-              style={{ width: '100%' }}
-              allowClear
-              value={selectedCategory || undefined}
-              onChange={(value) => {
-                setSelectedCategory(value || '');
-                actionRef.current?.reload();
-              }}
-            >
-              {categories.map(category => (
-                <Select.Option key={category.id} value={category.id}>
-                  {category.name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Col>
-        </Row>
-      </Card>
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab}
+          type="card"
+          size="large"
+          items={[
+            {
+              key: 'items',
+              label: (
+                <span>
+                  <UnorderedListOutlined />
+                  آیتم‌های منو
+                </span>
+              ),
+              children: (
+                <>
+                  {/* فیلترهای آیتم‌های منو */}
+                  <Card size="small" style={{ marginBottom: 16 }}>
+                    <Row gutter={16}>
+                      <Col xs={24} sm={12} md={8}>
+                        <Select
+                          placeholder="انتخاب دسته‌بندی"
+                          style={{ width: '100%' }}
+                          allowClear
+                          value={selectedCategory || undefined}
+                          onChange={(value) => {
+                            setSelectedCategory(value || '');
+                            actionRef.current?.reload();
+                          }}
+                          showSearch
+                          filterOption={(input, option) =>
+                            String(option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+                          }
+                        >
+                          {categories.map(category => (
+                            <Select.Option key={category.id} value={category.id}>
+                              {category.name}
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      </Col>
+                    </Row>
+                  </Card>
 
-      {/* جدول آیتم‌های منو */}
-      <ProTable<MenuItem>
-        actionRef={actionRef}
-        columns={menuItemColumns}
-        request={fetchMenuItems}
-        rowKey="id"
-        pagination={{
-          defaultPageSize: 10,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) => 
-            `${range[0]}-${range[1]} از ${total} آیتم`
-        }}
-        search={{
-          labelWidth: 'auto',
-          searchText: 'جستجو',
-          resetText: 'پاک کردن',
-          span: 6  // تنظیم span برای حل مشکل className mismatch
-        }}
-        toolBarRender={() => [
-          <Button
-            key="refresh"
-            onClick={refreshData} // استفاده از تابع جدید
-          >
-            بروزرسانی
-          </Button>
-        ]}
-        loading={loading}
-        locale={{
-          emptyText: 'آیتم منویی یافت نشد'
-        }}
-        options={{
-          reload: false, // غیرفعال کردن دکمه reload اضافی
-        }}
-      />
+                  {/* جدول آیتم‌های منو */}
+                  <ProTable<MenuItem>
+                    actionRef={actionRef}
+                    columns={menuItemColumns}
+                    request={fetchMenuItems}
+                    rowKey="id"
+                    pagination={{
+                      defaultPageSize: 10,
+                      showSizeChanger: true,
+                      showQuickJumper: true,
+                      showTotal: (total, range) => 
+                        `${range[0]}-${range[1]} از ${total} آیتم`
+                    }}
+                    search={{
+                      labelWidth: 'auto',
+                      searchText: 'جستجو',
+                      resetText: 'پاک کردن'
+                    }}
+                    loading={loading}
+                    locale={{
+                      emptyText: 'آیتم منویی یافت نشد'
+                    }}
+                    options={{
+                      reload: false
+                    }}
+                    scroll={{ x: 'max-content' }}
+                  />
+                </>
+              )
+            },
+            {
+              key: 'categories',
+              label: (
+                <span>
+                  <AppstoreOutlined />
+                  دسته‌بندی‌ها
+                  <Badge count={categories.length} style={{ marginLeft: 8 }} />
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '16px 0' }}>
+                  {categories && categories.length > 0 ? (
+                    <div>
+                      <Alert
+                        message="راهنما"
+                        description="دسته‌بندی‌های شما به صورت کارت نمایش داده می‌شوند."
+                        type="info"
+                        showIcon
+                        style={{ marginBottom: 24 }}
+                      />
+                      <Row gutter={[16, 16]}>
+                        {buildCategoryTree(categories).map((category) => (
+                          <Col xs={24} sm={12} lg={8} xl={6} key={category.id}>
+                            <Card
+                              hoverable
+                              loading={categoriesLoading}
+                              style={{
+                                border: '2px solid #1890ff20',
+                                backgroundColor: '#1890ff05',
+                                minHeight: '200px',
+                                borderRadius: '12px'
+                              }}
+                              actions={[
+                                <Button
+                                  key="edit"
+                                  type="text"
+                                  size="small"
+                                  icon={<EditOutlined />}
+                                  onClick={() => {
+                                    setEditingCategory(category);
+                                    setCategoryFormVisible(true);
+                                  }}
+                                >
+                                  ویرایش
+                                </Button>,
+                                <Popconfirm
+                                  key="delete"
+                                  title="آیا از حذف این دسته‌بندی اطمینان دارید؟"
+                                  onConfirm={() => handleDeleteCategory(category.id)}
+                                  okText="بله"
+                                  cancelText="خیر"
+                                >
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    danger
+                                    icon={<DeleteOutlined />}
+                                  >
+                                    حذف
+                                  </Button>
+                                </Popconfirm>
+                              ]}
+                            >
+                              <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '32px', marginBottom: '12px' }}>
+                                  🍽️
+                                </div>
+                                <Title level={5} style={{ margin: '0 0 8px 0', color: '#1890ff' }}>
+                                  {category.name}
+                                </Title>
+                                {category.nameEn && (
+                                  <Text type="secondary" style={{ fontSize: '13px', display: 'block', marginBottom: '12px' }}>
+                                    {category.nameEn}
+                                  </Text>
+                                )}
+                                
+                                <Space size="small" style={{ marginBottom: '12px' }}>
+                                  <Tag color="blue">{category.children?.length || 0} زیرمجموعه</Tag>
+                                  <Tag color="green">{(category as any)._count?.menuItems || 0} آیتم</Tag>
+                                </Space>
+
+                                {category.description && (
+                                  <Text type="secondary" style={{ 
+                                    fontSize: '12px', 
+                                    display: 'block',
+                                    marginTop: '8px',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {category.description}
+                                  </Text>
+                                )}
+                              </div>
+                            </Card>
+                          </Col>
+                        ))}
+                      </Row>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                      <div style={{ fontSize: '48px', marginBottom: '16px' }}>📂</div>
+                      <Title level={4} type="secondary">هیچ دسته‌بندی‌ای موجود نیست</Title>
+                      <Text type="secondary" style={{ marginBottom: '24px', display: 'block' }}>
+                        برای شروع، اولین دسته‌بندی خود را ایجاد کنید
+                      </Text>
+                      <Button
+                        type="primary"
+                        size="large"
+                        icon={<PlusOutlined />}
+                        onClick={() => {
+                          setEditingCategory(null);
+                          setCategoryFormVisible(true);
+                        }}
+                      >
+                        ایجاد اولین دسته‌بندی
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )
+            }
+          ]}
+        />
+      </Card>
 
       {/* فرم‌های منو */}
       <MenuItemForm
@@ -666,7 +706,7 @@ const MenuPage: React.FC = () => {
         onSuccess={() => {
           setItemFormVisible(false);
           setEditingItem(null);
-          refreshData(); // بروزرسانی آمار بعد از افزودن/ویرایش آیتم
+          refreshData();
         }}
       />
 
@@ -681,7 +721,7 @@ const MenuPage: React.FC = () => {
         onSuccess={() => {
           setCategoryFormVisible(false);
           setEditingCategory(null);
-          refreshData(); // بروزرسانی آمار بعد از افزودن/ویرایش دسته‌بندی
+          refreshData();
         }}
       />
     </PageContainer>

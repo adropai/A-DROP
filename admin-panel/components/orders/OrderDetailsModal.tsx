@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Modal, Card, Row, Col, Typography, Tag, Space, Button, Divider, Timeline, Table, message } from 'antd'
+import { Modal, Card, Row, Col, Typography, Tag, Space, Button, Divider, Timeline, Table, App } from 'antd'
 import { 
   PrinterOutlined, DownloadOutlined, WhatsAppOutlined, 
   ClockCircleOutlined, CheckCircleOutlined, FireOutlined,
@@ -19,6 +19,7 @@ interface OrderDetailsModalProps {
 }
 
 const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, visible, onCancel, onPrint }) => {
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(false)
 
   if (!order) return null
@@ -106,7 +107,7 @@ ${order.estimatedTime ? `زمان تخمینی: ${order.estimatedTime} دقیق�
   const handleDownloadReceipt = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/orders/${order.id}/receipt`, {
+      const response = await fetch(`/api/orders/order/${order.id}/receipt`, {
         method: 'GET',
       })
 
@@ -228,27 +229,92 @@ ${order.estimatedTime ? `زمان تخمینی: ${order.estimatedTime} دقیق�
       <Row gutter={[16, 16]}>
         {/* Customer Information */}
         <Col span={12}>
-          <Card title="اطلاعات مشتری" size="small">
+          <Card 
+            title={
+              <Space>
+                <span>اطلاعات مشتری</span>
+                <Tag color="blue">
+                  {order.type === 'dine-in' && '🍽️ حضوری'}
+                  {order.type === 'takeaway' && '🥡 بیرون‌بر'}
+                  {order.type === 'delivery' && '🚚 ارسالی'}
+                </Tag>
+              </Space>
+            } 
+            size="small"
+          >
             <Space direction="vertical" style={{ width: '100%' }}>
+              {/* نام مشتری */}
               <Row justify="space-between">
-                <Text>نام:</Text>
-                <Text strong>{order.customer?.name || 'نامشخص'}</Text>
+                <Text>نام مشتری:</Text>
+                <Text strong>{order.customer?.name || order.customerName || 'نامشخص'}</Text>
               </Row>
-              <Row justify="space-between">
-                <Text>تلفن:</Text>
-                <Text>{order.customer?.phone || '-'}</Text>
-              </Row>
-              {order.customer?.email && (
+              
+              {/* شماره تلفن */}
+              {(order.customer?.phone || order.customerPhone) && (
                 <Row justify="space-between">
-                  <Text>ایمیل:</Text>
-                  <Text>{order.customer.email}</Text>
+                  <Text>تلفن:</Text>
+                  <Text copyable>{order.customer?.phone || order.customerPhone}</Text>
                 </Row>
               )}
-              {order.customer?.address && (
+              
+              {/* ایمیل */}
+              {(order.customer?.email || order.customerEmail) && (
                 <Row justify="space-between">
-                  <Text>آدرس:</Text>
-                  <Text>{order.customer.address}</Text>
+                  <Text>ایمیل:</Text>
+                  <Text>{order.customer?.email || order.customerEmail}</Text>
                 </Row>
+              )}
+              
+              {/* آدرس برای ارسالی */}
+              {order.type === 'delivery' && (order.customer?.address || order.customerAddress) && (
+                <>
+                  <Row justify="space-between">
+                    <Text>آدرس تحویل:</Text>
+                  </Row>
+                  <div style={{ 
+                    padding: '8px', 
+                    backgroundColor: '#f6ffed', 
+                    borderRadius: '4px',
+                    border: '1px solid #b7eb8f'
+                  }}>
+                    <Text style={{ fontSize: '13px' }}>
+                      📍 {order.customer?.address || order.customerAddress}
+                    </Text>
+                  </div>
+                </>
+              )}
+              
+              {/* شماره میز برای حضوری */}
+              {order.type === 'dine-in' && order.tableNumber && (
+                <Row justify="space-between">
+                  <Text>شماره میز:</Text>
+                  <Tag color="blue" style={{ fontSize: '14px' }}>میز {order.tableNumber}</Tag>
+                </Row>
+              )}
+              
+              {/* نام گیرنده (در صورت تفاوت) */}
+              {order.recipientName && order.recipientName !== (order.customer?.name || order.customerName) && (
+                <Row justify="space-between">
+                  <Text>نام گیرنده:</Text>
+                  <Text strong>{order.recipientName}</Text>
+                </Row>
+              )}
+              
+              {/* راهنمای دسترسی */}
+              {order.deliveryNotes && (
+                <>
+                  <Row justify="space-between">
+                    <Text>راهنمای دسترسی:</Text>
+                  </Row>
+                  <div style={{ 
+                    padding: '6px', 
+                    backgroundColor: '#fffbe6', 
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}>
+                    {order.deliveryNotes}
+                  </div>
+                </>
               )}
             </Space>
           </Card>
@@ -258,38 +324,70 @@ ${order.estimatedTime ? `زمان تخمینی: ${order.estimatedTime} دقیق�
         <Col span={12}>
           <Card title="اطلاعات سفارش" size="small">
             <Space direction="vertical" style={{ width: '100%' }}>
+              
+              {/* شماره سفارش */}
+              <Row justify="space-between">
+                <Text>شماره سفارش:</Text>
+                <Text strong copyable>#{order.orderNumber || order.id}</Text>
+              </Row>
+              
+              {/* نوع سفارش */}
               <Row justify="space-between">
                 <Text>نوع سفارش:</Text>
-                <Tag color="blue">
-                  {order.type === 'dine-in' && 'حضوری'}
-                  {order.type === 'takeaway' && 'بیرون‌بر'}
-                  {order.type === 'delivery' && 'ارسالی'}
+                <Tag 
+                  color={order.type === 'dine-in' ? 'blue' : order.type === 'takeaway' ? 'green' : 'orange'}
+                  style={{ fontSize: '13px' }}
+                >
+                  {order.type === 'dine-in' && '🍽️ حضوری'}
+                  {order.type === 'takeaway' && '🥡 بیرون‌بر'}
+                  {order.type === 'delivery' && '🚚 ارسالی'}
                 </Tag>
               </Row>
-              {order.tableNumber && (
-                <Row justify="space-between">
-                  <Text>شماره میز:</Text>
-                  <Text strong>{order.tableNumber}</Text>
-                </Row>
-              )}
+              
+              {/* زمان ایجاد */}
               <Row justify="space-between">
-                <Text>زمان ایجاد:</Text>
-                <Text>{dayjs(order.createdAt).format('YYYY/MM/DD HH:mm')}</Text>
+                <Text>زمان ثبت:</Text>
+                <Text>{dayjs(order.createdAt).format('YYYY/MM/DD - HH:mm')}</Text>
               </Row>
+              
+              {/* زمان تخمینی */}
               {order.estimatedTime && (
                 <Row justify="space-between">
                   <Text>زمان تخمینی:</Text>
-                  <Text>{order.estimatedTime} دقیقه</Text>
+                  <Tag color="purple">{order.estimatedTime} دقیقه</Tag>
                 </Row>
               )}
+              
+              {/* روش پرداخت */}
               <Row justify="space-between">
                 <Text>روش پرداخت:</Text>
-                <Tag>
-                  {order.paymentMethod === 'cash' && 'نقدی'}
-                  {order.paymentMethod === 'card' && 'کارتی'}
-                  {order.paymentMethod === 'online' && 'آنلاین'}
+                <Tag color="cyan">
+                  {order.paymentMethod === 'cash' && '💰 نقدی'}
+                  {order.paymentMethod === 'card' && '💳 کارتی'}
+                  {order.paymentMethod === 'online' && '🌐 آنلاین'}
                 </Tag>
               </Row>
+              
+              {/* اولویت سفارش */}
+              {order.priority && (
+                <Row justify="space-between">
+                  <Text>اولویت:</Text>
+                  <Tag color={order.priority === 'high' ? 'red' : order.priority === 'normal' ? 'orange' : 'green'}>
+                    {order.priority === 'high' && '🔴 فوری'}
+                    {order.priority === 'normal' && '🟡 متوسط'}
+                    {order.priority === 'low' && '🟢 عادی'}
+                  </Tag>
+                </Row>
+              )}
+              
+              {/* تعداد کل اقلام */}
+              <Row justify="space-between">
+                <Text>تعداد اقلام:</Text>
+                <Text strong>
+                  {order.items?.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0) || 0} قلم
+                </Text>
+              </Row>
+              
             </Space>
           </Card>
         </Col>

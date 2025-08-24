@@ -1,4 +1,4 @@
-// React hooks for Security & Backup System
+// React hooks for Security & Backup System with Database Integration
 import { useState, useCallback } from 'react';
 import { 
   SecuritySettings, 
@@ -18,7 +18,7 @@ export function useSecurity() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/security?type=settings');
+      const res = await fetch('/api/security-db?type=settings');
       if (!res.ok) throw new Error('Failed to fetch security settings');
       return await res.json();
     } catch (err) {
@@ -33,7 +33,7 @@ export function useSecurity() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/security?type=settings', {
+      const res = await fetch('/api/security-db?type=settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
@@ -58,7 +58,7 @@ export function useSecurity() {
       if (endDate) params.append('endDate', endDate.toISOString());
       if (userId) params.append('userId', userId);
       
-      const res = await fetch(`/api/security?${params}`);
+      const res = await fetch(`/api/security-db?${params}`);
       if (!res.ok) throw new Error('Failed to fetch audit logs');
       return await res.json();
     } catch (err) {
@@ -72,10 +72,17 @@ export function useSecurity() {
   const logAudit = useCallback(async (action: string, userId: string, details?: any, status?: 'success' | 'failed' | 'warning'): Promise<boolean> => {
     try {
       setError(null);
-      const res = await fetch('/api/security?type=audit', {
+      const res = await fetch('/api/security-db?type=audit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, userId, details, status })
+        body: JSON.stringify({ 
+          action, 
+          userId, 
+          details, 
+          status: status || 'success',
+          resource: 'system',
+          ipAddress: window.location.hostname
+        })
       });
       return res.ok;
     } catch (err) {
@@ -89,7 +96,7 @@ export function useSecurity() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/security?type=backup-configs');
+      const res = await fetch('/api/security-db?type=backup-configs');
       if (!res.ok) throw new Error('Failed to fetch backup configs');
       return await res.json();
     } catch (err) {
@@ -104,7 +111,7 @@ export function useSecurity() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/security?type=backup-config', {
+      const res = await fetch('/api/security-db?type=backup-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -123,7 +130,7 @@ export function useSecurity() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/security?type=backup-config&id=${id}`, {
+      const res = await fetch(`/api/security-db?type=backup-config&id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -142,7 +149,7 @@ export function useSecurity() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/security?type=backup-config&id=${id}`, {
+      const res = await fetch(`/api/security-db?type=backup-config&id=${id}`, {
         method: 'DELETE'
       });
       return res.ok;
@@ -154,25 +161,27 @@ export function useSecurity() {
     }
   }, []);
 
-  const executeBackup = useCallback(async (configId: string): Promise<BackupHistory | null> => {
+  const executeBackup = useCallback(async (configId: string): Promise<boolean> => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/security?type=execute-backup', {
+      const res = await fetch('/api/security-db?type=backup-execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ configId })
       });
       if (!res.ok) throw new Error('Failed to execute backup');
-      return await res.json();
+      const result = await res.json();
+      return result.success;
     } catch (err) {
       setError((err as Error).message);
-      return null;
+      return false;
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Backup History
   const fetchBackupHistory = useCallback(async (configId?: string): Promise<BackupHistory[]> => {
     try {
       setLoading(true);
@@ -180,7 +189,7 @@ export function useSecurity() {
       const params = new URLSearchParams({ type: 'backup-history' });
       if (configId) params.append('configId', configId);
       
-      const res = await fetch(`/api/security?${params}`);
+      const res = await fetch(`/api/security-db?${params}`);
       if (!res.ok) throw new Error('Failed to fetch backup history');
       return await res.json();
     } catch (err) {
@@ -192,14 +201,14 @@ export function useSecurity() {
   }, []);
 
   // Security Incidents
-  const fetchIncidents = useCallback(async (status?: SecurityIncident['status']): Promise<SecurityIncident[]> => {
+  const fetchIncidents = useCallback(async (status?: string): Promise<SecurityIncident[]> => {
     try {
       setLoading(true);
       setError(null);
       const params = new URLSearchParams({ type: 'incidents' });
       if (status) params.append('status', status);
       
-      const res = await fetch(`/api/security?${params}`);
+      const res = await fetch(`/api/security-db?${params}`);
       if (!res.ok) throw new Error('Failed to fetch incidents');
       return await res.json();
     } catch (err) {
@@ -210,11 +219,11 @@ export function useSecurity() {
     }
   }, []);
 
-  const createIncident = useCallback(async (incident: Omit<SecurityIncident, 'id' | 'timestamp' | 'status'>): Promise<SecurityIncident | null> => {
+  const createIncident = useCallback(async (incident: Omit<SecurityIncident, 'id' | 'timestamp' | 'createdAt' | 'updatedAt'>): Promise<SecurityIncident | null> => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/security?type=incident', {
+      const res = await fetch('/api/security-db?type=incident', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(incident)
@@ -233,7 +242,7 @@ export function useSecurity() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/security?type=incident&id=${id}`, {
+      const res = await fetch(`/api/security-db?type=incident&id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -248,13 +257,13 @@ export function useSecurity() {
     }
   }, []);
 
-  // Encryption Settings
-  const fetchEncryptionSettings = useCallback(async (): Promise<DataEncryption | null> => {
+  // Dashboard Statistics
+  const fetchDashboardStats = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/security?type=encryption');
-      if (!res.ok) throw new Error('Failed to fetch encryption settings');
+      const res = await fetch('/api/security-db?type=dashboard-stats');
+      if (!res.ok) throw new Error('Failed to fetch dashboard stats');
       return await res.json();
     } catch (err) {
       setError((err as Error).message);
@@ -264,71 +273,59 @@ export function useSecurity() {
     }
   }, []);
 
-  const updateEncryptionSettings = useCallback(async (settings: Partial<DataEncryption>): Promise<DataEncryption | null> => {
+  // Security Report Generation
+  const generateSecurityReport = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/security?type=encryption', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      });
-      if (!res.ok) throw new Error('Failed to update encryption settings');
-      return await res.json();
+      const stats = await fetchDashboardStats();
+      
+      return {
+        summary: {
+          securityScore: stats?.securityScore || 85,
+          riskLevel: stats?.securityScore > 80 ? 'low' : stats?.securityScore > 60 ? 'medium' : 'high',
+          totalIncidents: stats?.openIncidents || 0,
+          criticalIssues: stats?.criticalIncidents || 0
+        },
+        recommendations: [
+          'Enable two-factor authentication for all admin accounts',
+          'Review and update password policies',
+          'Implement regular security audits',
+          'Setup automated backup schedules'
+        ],
+        recentActivity: await fetchAuditLogs(),
+        backupStatus: await fetchBackupConfigs()
+      };
     } catch (err) {
       setError((err as Error).message);
       return null;
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  // Security Reports
-  const generateSecurityReport = useCallback(async (): Promise<any> => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch('/api/security?type=report');
-      if (!res.ok) throw new Error('Failed to generate security report');
-      return await res.json();
-    } catch (err) {
-      setError((err as Error).message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  }, [fetchDashboardStats, fetchAuditLogs, fetchBackupConfigs]);
 
   return {
     loading,
     error,
-    
-    // Security Settings
+    // Settings
     fetchSecuritySettings,
     updateSecuritySettings,
-    
-    // Audit Logs
+    // Audits
     fetchAuditLogs,
     logAudit,
-    
-    // Backup Management
+    // Backups
     fetchBackupConfigs,
     createBackupConfig,
     updateBackupConfig,
     deleteBackupConfig,
     executeBackup,
     fetchBackupHistory,
-    
-    // Security Incidents
+    // Incidents
     fetchIncidents,
     createIncident,
     updateIncident,
-    
-    // Encryption
-    fetchEncryptionSettings,
-    updateEncryptionSettings,
-    
-    // Reports
+    // Dashboard
+    fetchDashboardStats,
     generateSecurityReport
   };
 }

@@ -1,40 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-here'
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key'
 
-// اطلاعات کاربران آزمایشی (مشابه login API)
+// اطلاعات کاربر تست (مشابه login API)
 const testUsers = [
   {
     id: '1',
-    email: 'admin@test.com',
-    name: 'مدیر کل سیستم',
-    role: 'SUPER_ADMIN',
+    email: 'admin@adrop.com',
+    name: 'مدیر سیستم',
+    role: 'ADMIN',
     permissions: ['*'],
-    avatar: null,
-    isActive: true,
-    lastLogin: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: '2', 
-    email: 'manager@test.com',
-    name: 'مدیر رستوران',
-    role: 'MANAGER',
-    permissions: ['orders.read', 'orders.write', 'kitchen.read', 'kitchen.write', 'staff.read'],
-    avatar: null,
-    isActive: true,
-    lastLogin: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: '3',
-    email: 'chef@test.com', 
-    name: 'سرآشپز',
-    role: 'CHEF',
-    permissions: ['kitchen.read', 'kitchen.write', 'orders.read'],
     avatar: null,
     isActive: true,
     lastLogin: null,
@@ -46,7 +22,7 @@ const testUsers = [
 export async function GET(request: NextRequest) {
   try {
     // دریافت token از cookie یا header
-    const token = request.cookies.get('auth-token')?.value || 
+    const token = request.cookies.get('auth_token')?.value || 
                   request.headers.get('Authorization')?.replace('Bearer ', '')
 
     if (!token) {

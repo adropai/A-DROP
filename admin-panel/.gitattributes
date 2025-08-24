@@ -1,0 +1,17 @@
+# Prevent auto-generation of these files
+*-backup.* filter=prevent-auto-creation
+*-new.* filter=prevent-auto-creation
+*-old.* filter=prevent-auto-creation
+*-temp.* filter=prevent-auto-creation
+*-copy.* filter=prevent-auto-creation
+
+# Specific files that should not be auto-generated
+app/api/cashier/route.ts filter=prevent-auto-creation
+app/api/cashier/route-new.ts filter=prevent-auto-creation
+app/api/kitchen/stats/route.ts filter=prevent-auto-creation
+app/calendar-test/** filter=prevent-auto-creation
+
+# Test files
+**/*.test.* filter=prevent-auto-creation
+**/*.spec.* filter=prevent-auto-creation
+**/__tests__/** filter=prevent-auto-creation

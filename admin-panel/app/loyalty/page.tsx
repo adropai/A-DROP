@@ -257,7 +257,9 @@ const mockTransactions: LoyaltyTransaction[] = [
   }
 ]
 
-const LoyaltyPrograms = () => {
+import PersianCalendar from '@/components/common/AdvancedPersianCalendar';
+
+export default function LoyaltyPage() {
   const [programs, setPrograms] = useState<LoyaltyProgram[]>(mockPrograms)
   const [transactions, setTransactions] = useState<LoyaltyTransaction[]>(mockTransactions)
   const [loading, setLoading] = useState(false)
@@ -760,7 +762,12 @@ const LoyaltyPrograms = () => {
                 name="startDate"
                 rules={[{ required: true, message: 'تاریخ شروع را انتخاب کنید' }]}
               >
-                <DatePicker style={{ width: '100%' }} />
+                <PersianCalendar 
+                  placeholder="انتخاب تاریخ شروع"
+                  onChange={(date: string) => {
+                    console.log('Start date selected:', date);
+                  }}
+                />
               </Form.Item>
             </Col>
             <Col span={8}>
@@ -768,7 +775,12 @@ const LoyaltyPrograms = () => {
                 label="تاریخ پایان"
                 name="endDate"
               >
-                <DatePicker style={{ width: '100%' }} />
+                <PersianCalendar 
+                  placeholder="انتخاب تاریخ پایان"
+                  onChange={(date: string) => {
+                    console.log('End date selected:', date);
+                  }}
+                />
               </Form.Item>
             </Col>
             
@@ -847,5 +859,3 @@ const LoyaltyPrograms = () => {
     </div>
   )
 }
-
-export default LoyaltyPrograms

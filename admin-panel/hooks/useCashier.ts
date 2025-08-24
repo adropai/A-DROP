@@ -21,7 +21,7 @@ interface PendingOrder {
   customerName?: string;
   total: number;
   tax: number;
-  subtotal: number;
+  totalAmount: number;
   discountAmount: number;
   items: OrderItem[];
   createdAt: string;
@@ -29,11 +29,14 @@ interface PendingOrder {
 
 interface OrderItem {
   id: number;
-  menuItemId: number;
-  name: string;
+  menuItemId: string;
   quantity: number;
   price: number;
-  total: number;
+  menuItem?: {
+    id: string;
+    name: string;
+    price: number;
+  };
 }
 
 interface Transaction {
@@ -320,7 +323,7 @@ export function useCashier() {
 
     // Utils
     getOrderTotal: (order: PendingOrder) => 
-      order.subtotal + order.tax - order.discountAmount,
+      order.totalAmount + order.tax - order.discountAmount,
     
     getPaymentMethodTotal: (method: string) => 
       state.paymentMethods.find(pm => pm.method === method)?.amount || 0,

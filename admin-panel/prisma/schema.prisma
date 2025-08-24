@@ -74,7 +74,11 @@ model Order {
   status          OrderStatus     @default(PENDING)
   type            OrderType       @default(DINE_IN)
   totalAmount     Float
+  tax             Float?          @default(0)
+  discountAmount  Float?          @default(0)
+  total           Float?
   paymentMethod   String?
+  paymentStatus   PaymentStatus   @default(PENDING)
   notes           String?
   tableNumber     Int?
   priority        OrderPriority   @default(NORMAL)
@@ -83,6 +87,7 @@ model Order {
   updatedAt       DateTime        @updatedAt
   items           OrderItem[]
   kitchenTickets  KitchenTicket[]
+  deliveries      Delivery[]
 
   @@index([status])
   @@index([type])
@@ -170,6 +175,7 @@ enum OrderStatus {
   SERVED            // سرو شده
   CANCELLED         // لغو شده
   COMPLETED         // کامل شده
+  REFUNDED          // بازگشت داده شده
 }
 
 enum OrderType {
@@ -184,6 +190,14 @@ enum OrderPriority {
   NORMAL            // عادی
   HIGH              // زیاد
   URGENT            // فوری
+}
+
+enum PaymentStatus {
+  PENDING           // در انتظار پرداخت
+  COMPLETED         // پرداخت شده
+  PARTIAL           // پرداخت جزئی
+  REFUNDED          // بازگشت داده شده
+  FAILED            // ناموفق
 }
 
 enum Department {
@@ -443,6 +457,8 @@ model User {
   
   // Relations
   userPermissions UserPermission[]
+  activityLogs    ActivityLog[]
+  securityAudits  SecurityAudit[]
 
   @@map("users")
 }
@@ -606,4 +622,398 @@ model UserPermission {
   
   @@unique([userId, permissionId])
   @@map("user_permissions")
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String   // DELETE_ORDER, EDIT_ORDER, CREATE_ORDER, etc.
+  entityType String   // ORDER, CUSTOMER, MENU_ITEM, etc.
+  entityId   String?  // ID of the affected entity
+  details    String?  // JSON string with additional details
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@map("activity_logs")
+}
+
+// Security & Backup Models
+model SecuritySettings {
+  id                  String   @id @default(cuid())
+  passwordPolicy      String   // JSON for password policy
+  sessionTimeout      Int      @default(30) // minutes
+  maxLoginAttempts    Int      @default(5)
+  lockoutDuration     Int      @default(15) // minutes
+  twoFactorAuth       Boolean  @default(false)
+  auditLogging        Boolean  @default(true)
+  encryptionLevel     String   @default("basic") // basic, advanced, enterprise
+  ipWhitelist         String?  // JSON array of IPs
+  dataRetentionDays   Int      @default(90)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("security_settings")
+}
+
+model SecurityAudit {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String
+  timestamp   DateTime @default(now())
+  ipAddress   String?
+  userAgent   String?
+  resource    String
+  status      String   @default("success") // success, failed, warning
+  details     String?  // JSON for additional details
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([timestamp])
+  @@index([action])
+  @@map("security_audits")
+}
+
+model BackupConfig {
+  id               String         @id @default(cuid())
+  name             String
+  schedule         String         // JSON for schedule config
+  retentionDays    Int            @default(30)
+  compression      Boolean        @default(true)
+  encryption       Boolean        @default(true)
+  destinations     String         // JSON for backup destinations
+  includeFiles     Boolean        @default(true)
+  includeDatabases String         // JSON array of database names
+  status           String         @default("active") // active, inactive, error
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  backupHistory    BackupHistory[]
+
+  @@map("backup_configs")
+}
+
+model BackupHistory {
+  id             String       @id @default(cuid())
+  configId       String
+  startTime      DateTime
+  endTime        DateTime?
+  status         String       @default("running") // running, completed, failed, cancelled
+  size           BigInt       @default(0) // bytes
+  location       String?
+  error          String?
+  filesIncluded  Int          @default(0)
+  duration       Int          @default(0) // seconds
+  config         BackupConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@index([configId])
+  @@index([startTime])
+  @@index([status])
+  @@map("backup_history")
+}
+
+model SecurityIncident {
+  id             String    @id @default(cuid())
+  type           String    // suspicious_login, multiple_failures, unauthorized_access, data_breach, malware
+  severity       String    @default("medium") // low, medium, high, critical
+  timestamp      DateTime  @default(now())
+  description    String
+  affectedUsers  String?   // JSON array of user IDs
+  ipAddress      String?
+  status         String    @default("open") // open, investigating, resolved, false_positive
+  assignedTo     String?
+  resolution     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([type])
+  @@index([severity])
+  @@index([status])
+  @@index([timestamp])
+  @@map("security_incidents")
+}
+
+// AI Training Models
+model AiModel {
+  id              String     @id @default(cuid())
+  name            String
+  type            String     // gpt-4, claude, local, etc.
+  status          String     @default("inactive") // active, inactive, training, error
+  version         String     @default("1.0.0")
+  accuracy        Float      @default(0.0)
+  lastTraining    DateTime?
+  parameters      String     // JSON for model parameters
+  description     String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  datasets        AiDataset[]
+  predictions     AiPrediction[]
+
+  @@map("ai_models")
+}
+
+model AiDataset {
+  id              String     @id @default(cuid())
+  name            String
+  type            String     // training, validation, test
+  size            Int        @default(0) // number of records
+  format          String     @default("json") // json, csv, txt
+  path            String?    // file path or URL
+  status          String     @default("pending") // pending, processing, ready, error
+  tags            String?    // JSON array of tags
+  description     String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  modelId         String?
+  model           AiModel?   @relation(fields: [modelId], references: [id], onDelete: SetNull)
+
+  @@map("ai_datasets")
+}
+
+model AiPrediction {
+  id              String     @id @default(cuid())
+  modelId         String
+  input           String     // JSON for input data
+  output          String     // JSON for output data
+  confidence      Float      @default(0.0)
+  executionTime   Int        @default(0) // milliseconds
+  feedback        String?    // user feedback
+  rating          Int?       // 1-5 rating
+  createdAt       DateTime   @default(now())
+  model           AiModel    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([modelId])
+  @@index([createdAt])
+  @@map("ai_predictions")
+}
+
+model AiPrompt {
+  id              String     @id @default(cuid())
+  name            String
+  category        String     // system, user, assistant
+  content         String     // prompt content
+  variables       String?    // JSON array of variables
+  version         String     @default("1.0")
+  isActive        Boolean    @default(true)
+  usage           Int        @default(0) // usage count
+  successRate     Float      @default(0.0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@map("ai_prompts")
+}
+
+// Support System Models
+model SupportTicket {
+  id              String         @id @default(cuid())
+  ticketNumber    String         @unique @default(cuid())
+  title           String
+  description     String
+  priority        String         @default("medium") // low, medium, high, urgent
+  status          String         @default("open") // open, in_progress, resolved, closed
+  category        String         // technical, billing, general, bug_report
+  customerName    String?
+  customerEmail   String?
+  customerPhone   String?
+  assignedTo      String?        // staff user ID
+  tags            String?        // JSON array of tags
+  resolution      String?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  estimatedHours  Float?
+  actualHours     Float?
+  satisfaction    Int?           // 1-5 rating
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  responses       TicketResponse[]
+  attachments     TicketAttachment[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([category])
+  @@index([assignedTo])
+  @@index([createdAt])
+  @@map("support_tickets")
+}
+
+model TicketResponse {
+  id              String        @id @default(cuid())
+  ticketId        String
+  responderId     String?       // user ID who responded
+  responderName   String
+  responderType   String        @default("staff") // staff, customer, system
+  content         String
+  isInternal      Boolean       @default(false) // internal note vs customer response
+  createdAt       DateTime      @default(now())
+  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("ticket_responses")
+}
+
+model TicketAttachment {
+  id              String        @id @default(cuid())
+  ticketId        String
+  fileName        String
+  filePath        String
+  fileSize        Int           @default(0) // bytes
+  mimeType        String?
+  uploadedBy      String?       // user ID
+  createdAt       DateTime      @default(now())
+  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("ticket_attachments")
+}
+
+model SupportKnowledgeBase {
+  id              String   @id @default(cuid())
+  title           String
+  content         String
+  category        String
+  tags            String?  // JSON array of tags
+  isPublished     Boolean  @default(false)
+  viewCount       Int      @default(0)
+  helpfulVotes    Int      @default(0)
+  notHelpfulVotes Int      @default(0)
+  authorId        String?
+  authorName      String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category])
+  @@index([isPublished])
+  @@index([viewCount])
+  @@map("support_knowledge_base")
+}
+
+// Delivery System Models
+model DeliveryZone {
+  id              String     @id @default(cuid())
+  name            String
+  description     String?
+  polygon         String     // JSON array of coordinates
+  deliveryFee     Float      @default(0)
+  minOrderAmount  Float      @default(0)
+  maxOrderAmount  Float?
+  estimatedTime   Int        @default(30) // minutes
+  isActive        Boolean    @default(true)
+  priority        Int        @default(1) // for overlapping zones
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deliveries      Delivery[]
+
+  @@map("delivery_zones")
+}
+
+model DeliveryPartner {
+  id              String     @id @default(cuid())
+  name            String
+  phone           String
+  email           String?
+  licenseNumber   String?
+  vehicleType     String     // bike, scooter, car, truck
+  vehicleNumber   String?
+  status          String     @default("available") // available, busy, offline, suspended
+  currentLocation String?    // JSON coordinates
+  rating          Float      @default(5.0)
+  totalDeliveries Int        @default(0)
+  isActive        Boolean    @default(true)
+  joinedAt        DateTime   @default(now())
+  lastActive      DateTime?
+  deliveries      Delivery[]
+
+  @@index([status])
+  @@index([isActive])
+  @@map("delivery_partners")
+}
+
+model Delivery {
+  id                 String           @id @default(cuid())
+  orderId            Int
+  courierId          String?
+  deliveryPartnerId  String?
+  zoneId             String?
+  trackingNumber     String           @unique @default(cuid())
+  status             String           @default("PENDING") // PENDING, ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED, FAILED, RETURNED, CANCELLED
+  priority           String           @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  pickupAddress      String?
+  pickupLatitude     Float?
+  pickupLongitude    Float?
+  deliveryAddress    String?
+  deliveryLatitude   Float?
+  deliveryLongitude  Float?
+  customerName       String?
+  customerPhone      String?
+  customerNotes      String?
+  deliveryFee        Float            @default(0)
+  tip                Float            @default(0)
+  estimatedDeliveryTime DateTime?
+  actualDeliveryTime   DateTime?
+  distance           Float?           // kilometers
+  assignedAt         DateTime?
+  pickedUpAt         DateTime?
+  deliveredAt        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  proofOfDelivery    String?          // photo URL or signature
+  rating             Int?             // 1-5 rating from customer
+  feedback           String?
+  notes              String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  order              Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courier            Courier?         @relation(fields: [courierId], references: [id], onDelete: SetNull)
+  partner            DeliveryPartner? @relation(fields: [deliveryPartnerId], references: [id], onDelete: SetNull)
+  zone               DeliveryZone?    @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  trackingUpdates    DeliveryTracking[]
+
+  @@index([status])
+  @@index([orderId])
+  @@index([deliveryPartnerId])
+  @@index([createdAt])
+  @@map("deliveries")
+}
+
+model DeliveryTracking {
+  id           String   @id @default(cuid())
+  deliveryId   String
+  status       String
+  location     String?  // address or description
+  latitude     Float?
+  longitude    Float?
+  notes        String?
+  timestamp    DateTime @default(now())
+  delivery     Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId])
+  @@index([timestamp])
+  @@map("delivery_tracking")
+}
+
+model Courier {
+  id                   String    @id @default(cuid())
+  name                 String
+  phone                String    @unique
+  email                String?
+  avatar               String?
+  vehicleType          String    @default("MOTORCYCLE") // BIKE, MOTORCYCLE, CAR, WALKING
+  vehicleDetails       String?   // رنگ، پلاک، مدل
+  status               String    @default("AVAILABLE") // AVAILABLE, BUSY, OFFLINE, ON_BREAK
+  currentLocation      String?
+  currentLatitude      Float?
+  currentLongitude     Float?
+  isActive             Boolean   @default(true)
+  rating               Float     @default(5.0)
+  totalDeliveries      Int       @default(0)
+  successfulDeliveries Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deliveries           Delivery[]
+
+  @@index([status])
+  @@index([isActive])
+  @@map("couriers")
 }

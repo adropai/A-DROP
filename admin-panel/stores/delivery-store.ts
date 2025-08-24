@@ -104,47 +104,84 @@ export const useDeliveryStore = create<DeliveryStore>()(
         try {
           set({ loading: true, error: null })
           
-          const { pagination } = get()
           const params = new URLSearchParams()
-          params.append('page', pagination.page.toString())
-          params.append('limit', pagination.limit.toString())
-          if (filters) {
-            Object.entries(filters).forEach(([key, value]) => {
-              if (Array.isArray(value)) {
-                value.forEach((v) => params.append(key, String(v)))
-              } else if (value instanceof Date) {
-                params.append(key, value.toISOString())
-              } else if (value !== undefined) {
-                params.append(key, String(value))
-              }
-            })
+          
+          // Add filters
+          if (filters?.status) {
+            params.append('status', filters.status.join(','))
+          }
+          if (filters?.limit) {
+            params.append('limit', filters.limit.toString())
           }
 
           const response = await fetch(`/api/delivery?${params.toString()}`)
 
           if (!response.ok) {
-            throw new Error('خطا در دریافت تحویلات')
+            throw new Error('خطا در دریافت سفارشات تحویلی')
           }
 
           const data = await response.json()
 
           if (data.success) {
-            set({ 
-              deliveries: data.data.map((d: any) => ({
-                ...d,
-                status: d.status as DeliveryStatus,
-              })),
-              pagination: {
-                ...pagination,
-                total: data.pagination.total,
-                totalPages: data.pagination.pages
-              }
-            })
+            // Handle new API format
+            if (data.data && data.data.deliveries) {
+              // New API format: { success: true, data: { deliveries: [...] } }
+              const deliveriesArray = Array.isArray(data.data.deliveries) ? data.data.deliveries : []
+              
+              const deliveries = deliveriesArray.map((delivery: any) => ({
+                id: delivery.id,
+                orderId: delivery.orderId,
+                order: delivery.order,
+                status: delivery.status,
+                courier: delivery.courier,
+                courierId: delivery.courierId,
+                customer: delivery.customer,
+                customerName: delivery.customerName,
+                customerPhone: delivery.customerPhone,
+                deliveryAddress: delivery.deliveryAddress,
+                pickupAddress: delivery.pickupAddress,
+                totalAmount: delivery.totalAmount || delivery.order?.totalAmount,
+                deliveryFee: delivery.deliveryFee || 15000,
+                estimatedDeliveryTime: delivery.estimatedDeliveryTime,
+                assignedAt: delivery.assignedAt,
+                pickedUpAt: delivery.pickedUpAt,
+                deliveredAt: delivery.deliveredAt,
+                notes: delivery.customerNotes || delivery.notes,
+                createdAt: delivery.createdAt,
+                updatedAt: delivery.updatedAt
+              }))
+              
+              set({ deliveries })
+            } else {
+              // Fallback to old format
+              const ordersArray = Array.isArray(data.data) ? data.data : []
+              
+              const deliveries = ordersArray.map((order: any) => ({
+                id: order.deliveries?.[0]?.id || `temp_${order.id}`,
+                orderId: order.id,
+                order: order,
+                status: order.deliveries?.[0]?.status || 'PENDING',
+                courier: order.deliveries?.[0]?.courier || null,
+                courierId: order.deliveries?.[0]?.courierId || null,
+                customer: order.customer,
+                customerAddress: order.customer.address,
+                estimatedDeliveryTime: order.deliveries?.[0]?.estimatedDeliveryTime || null,
+                assignedAt: order.deliveries?.[0]?.assignedAt || null,
+                pickedUpAt: order.deliveries?.[0]?.pickedUpAt || null,
+                deliveredAt: order.deliveries?.[0]?.deliveredAt || null,
+                notes: order.deliveries?.[0]?.notes || order.notes,
+                isReadyForDelivery: order.isReadyForDelivery,
+                createdAt: order.createdAt,
+                updatedAt: order.updatedAt
+              }))
+              
+              set({ deliveries })
+            }
           } else {
-            throw new Error(data.error || 'خطا در دریافت تحویلات')
+            throw new Error(data.error || 'خطا در دریافت سفارشات تحویلی')
           }
         } catch (error) {
-          set({ error: (error as Error).message })
+          set({ error: (error as Error).message, deliveries: [] })
         } finally {
           set({ loading: false })
         }
@@ -248,10 +285,15 @@ export const useDeliveryStore = create<DeliveryStore>()(
         try {
           set({ loading: true, error: null })
 
-          const response = await fetch('/api/delivery/assign', {
+          const response = await fetch('/api/delivery/orders', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify({
+              orderId: data.deliveryId, // Using deliveryId as orderId
+              courierId: data.courierId,
+              estimatedDeliveryTime: data.estimatedDeliveryTime,
+              notes: data.notes
+            })
           })
 
           if (!response.ok) {
@@ -317,13 +359,15 @@ export const useDeliveryStore = create<DeliveryStore>()(
 
           const data = await response.json()
           
-          if (data.success) {
-            set({ couriers: data.data })
+          // API returns { couriers: [...] } format
+          if (data.couriers) {
+            const couriersArray = Array.isArray(data.couriers) ? data.couriers : []
+            set({ couriers: couriersArray })
           } else {
-            throw new Error(data.error || 'خطا در دریافت پیک‌ها')
+            throw new Error('فرمت پاسخ API نامعتبر است')
           }
         } catch (error) {
-          set({ error: (error as Error).message })
+          set({ error: (error as Error).message, couriers: [] })
         } finally {
           set({ loading: false })
         }

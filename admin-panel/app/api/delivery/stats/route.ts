@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
       select: {
         createdAt: true,
         deliveredAt: true,
-        estimatedDeliveryTime: true
+        estimatedTime: true
       }
     });
 
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
           const deliveryTime = (delivery.deliveredAt.getTime() - delivery.createdAt.getTime()) / (1000 * 60); // به دقیقه
           
           // بررسی به موقع بودن
-          if (delivery.estimatedDeliveryTime && deliveryTime <= delivery.estimatedDeliveryTime) {
+          if (delivery.estimatedTime && deliveryTime <= delivery.estimatedTime) {
             onTimeDeliveries++;
           }
           
@@ -145,31 +145,27 @@ export async function GET(request: NextRequest) {
 
     // آمار پیک‌ها
     const [activeCouriers, totalCouriers, courierRatings] = await Promise.all([
-      prisma.courier.count({
+      prisma.deliveryPartner.count({
         where: {
           status: { in: ['AVAILABLE', 'BUSY'] },
           isActive: true
         }
       }),
-      prisma.courier.count({
+      prisma.deliveryPartner.count({
         where: { isActive: true }
       }),
-      prisma.courier.aggregate({
+      prisma.deliveryPartner.aggregate({
         _avg: { rating: true },
         where: { isActive: true }
       })
     ]);
 
-    // آمار رضایت مشتری (از نظرات سفارشات تحویل شده)
-    const customerFeedback = await prisma.order.aggregate({
+    // آمار رضایت مشتری (از نظرات تحویلات)
+    const customerFeedback = await prisma.delivery.aggregate({
       _avg: { rating: true },
       where: {
-        deliveries: {
-          some: {
-            status: 'DELIVERED',
-            deliveredAt: { gte: startDate, lte: endDate }
-          }
-        },
+        status: 'DELIVERED',
+        deliveredAt: { gte: startDate, lte: endDate },
         rating: { not: null }
       }
     });

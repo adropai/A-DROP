@@ -163,7 +163,6 @@ export const getConsistentProTableProps = () => {
       labelWidth: 'auto' as const,
       searchText: 'جستجو',
       resetText: 'پاک کردن',
-      submitText: 'اعمال فیلتر',
       collapseRender: (collapsed: boolean) => 
         collapsed ? 'نمایش فیلترها' : 'پنهان کردن فیلترها',
     },
@@ -187,10 +186,10 @@ export const ConsistentLoadingSkeleton: React.FC<{
   rows = 5, 
   columns = 4 
 }) => {
-  const skeletonItems = []
+  const skeletonItems: React.ReactElement[] = []
   
   for (let i = 0; i < rows; i++) {
-    const rowItems = []
+    const rowItems: React.ReactElement[] = []
     for (let j = 0; j < columns; j++) {
       rowItems.push(
         React.createElement('div', {

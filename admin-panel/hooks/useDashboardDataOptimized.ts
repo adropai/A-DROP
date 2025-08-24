@@ -32,8 +32,12 @@ const fetcher = async (url: string) => {
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`)
   }
-  
-  return response.json()
+  const json = await response.json()
+  // Unwrap `{ success, data }` shape if present
+  if (json && typeof json === 'object' && 'data' in json) {
+    return json.data
+  }
+  return json
 }
 
 // Stats hook with SWR
@@ -65,6 +69,7 @@ export const useOrders = () => {
     try {
       // Optimistic update
       const currentData = data || { orders: [] }
+      const nextStatus = String(newStatus).toUpperCase()
       const updatedOrders = currentData.orders.map((order: any) =>
         order.id === orderId ? { ...order, status: newStatus } : order
       )
@@ -78,7 +83,7 @@ export const useOrders = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ orderId, status: newStatus }),
+        body: JSON.stringify({ orderId, status: nextStatus }),
       })
 
       if (!response.ok) {

@@ -30,6 +30,7 @@ import {
   List,
   Popover,
   Calendar,
+  App,
 } from "antd";
 import {
   UserOutlined,
@@ -52,11 +53,11 @@ import dayjs from "dayjs";
 import moment from "moment-jalaali";
 import type { ColumnsType } from "antd/es/table";
 import type { Dayjs } from "dayjs";
+import PersianCalendar from "@/components/common/AdvancedPersianCalendar";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
-const { TabPane } = Tabs;
 const { Step } = Steps;
 
 // Types
@@ -166,7 +167,6 @@ const fetchReservations = async (): Promise<Reservation[]> => {
     if (!result.success) throw new Error(result.error);
     return result.data.reservations || [];
   } catch (error) {
-    console.error("خطا در دریافت رزروها:", error);
     throw new Error("خطا در دریافت رزروها");
   }
 };
@@ -178,172 +178,35 @@ const checkAvailability = async (date: string, time: string, partySize: number):
     if (!result.success) throw new Error(result.error);
     return result.data;
   } catch (error) {
-    console.error("خطا در چک دسترسی:", error);
     throw error;
   }
 };
 
 const submitReservation = async (data: any) => {
-  console.log('🌐 API Request:', JSON.stringify(data, null, 2));
   const res = await fetch("/api/reservations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   const result = await res.json();
-  console.log('🌐 API Response Status:', res.status);
-  console.log('🌐 API Response Body:', JSON.stringify(result, null, 2));
   if (!result.success) throw new Error(result.error);
   return result;
 };
 
-// Persian Calendar Component
-const PersianDatePicker: React.FC<{
-  value?: string;
-  onChange?: (date: string) => void;
-  placeholder?: string;
-}> = ({ value, onChange, placeholder = "انتخاب تاریخ" }) => {
-  const [visible, setVisible] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(value || '');
-
-  // Generate Persian calendar grid
-  const generateCalendar = () => {
-    const today = moment();
-    const startOfMonth = moment().startOf('month');
-    const endOfMonth = moment().endOf('month');
-    const startDate = startOfMonth.clone().startOf('week');
-    const endDate = endOfMonth.clone().endOf('week');
-    
-    const calendar = [];
-    const current = startDate.clone();
-    
-    while (current.isSameOrBefore(endDate)) {
-      const week = [];
-      for (let i = 0; i < 7; i++) {
-        const date = current.clone();
-        const persianDate = date.format('jYYYY/jMM/jDD');
-        const isToday = date.isSame(today, 'day');
-        const isCurrentMonth = date.month() === today.month();
-        const isPast = date.isBefore(today, 'day');
-        
-        week.push({
-          date: persianDate,
-          day: date.format('jDD'),
-          isToday,
-          isCurrentMonth,
-          isPast,
-          gregorianDate: date.toDate()
-        });
-        current.add(1, 'day');
-      }
-      calendar.push(week);
-    }
-    return calendar;
-  };
-
-  const handleDateSelect = (date: string) => {
-    setSelectedDate(date);
-    onChange?.(date);
-    setVisible(false);
-    message.success(`تاریخ ${date} انتخاب شد`);
-  };
-
-  const calendar = generateCalendar();
-  const weekDays = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'];
-
-  const calendarContent = (
-    <div style={{ width: 280, padding: 8 }}>
-      <div style={{ textAlign: 'center', marginBottom: 16, fontWeight: 'bold' }}>
-        {moment().format('jMMMM jYYYY')}
-      </div>
-      
-      {/* Week days header */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 8 }}>
-        {weekDays.map(day => (
-          <div key={day} style={{ 
-            textAlign: 'center', 
-            fontWeight: 'bold', 
-            fontSize: '12px',
-            color: '#666',
-            padding: '4px'
-          }}>
-            {day}
-          </div>
-        ))}
-      </div>
-      
-      {/* Calendar grid */}
-      {calendar.map((week, weekIndex) => (
-        <div key={weekIndex} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
-          {week.map((day, dayIndex) => (
-            <Button
-              key={dayIndex}
-              size="small"
-              type={day.date === selectedDate ? 'primary' : 'text'}
-              disabled={day.isPast}
-              onClick={() => handleDateSelect(day.date)}
-              style={{
-                height: 32,
-                fontSize: '12px',
-                border: day.isToday ? '2px solid #1890ff' : undefined,
-                opacity: day.isCurrentMonth ? 1 : 0.5,
-                backgroundColor: day.date === selectedDate ? '#1890ff' : undefined,
-                color: day.date === selectedDate ? 'white' : undefined
-              }}
-            >
-              {day.day}
-            </Button>
-          ))}
-        </div>
-      ))}
-      
-      {/* Quick select buttons */}
-      <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
-        <Button size="small" onClick={() => handleDateSelect(moment().format('jYYYY/jMM/jDD'))}>
-          امروز
-        </Button>
-        <Button size="small" onClick={() => handleDateSelect(moment().add(1, 'day').format('jYYYY/jMM/jDD'))}>
-          فردا
-        </Button>
-      </div>
-    </div>
-  );
-
-  return (
-    <Popover
-      content={calendarContent}
-      title="انتخاب تاریخ"
-      trigger="click"
-      open={visible}
-      onOpenChange={setVisible}
-      placement="bottomLeft"
-    >
-      <Input
-        value={selectedDate}
-        placeholder={placeholder}
-        prefix={<CalendarOutlined />}
-        readOnly
-        style={{ cursor: 'pointer' }}
-        onClick={() => setVisible(true)}
-      />
-    </Popover>
-  );
-};
-
 const updateReservationStatus = async (id: string, status: string) => {
-  console.log('🔄 Updating reservation status:', { id, status });
   const res = await fetch(`/api/reservations`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, status }),
   });
   const result = await res.json();
-  console.log('🔄 Update status response:', result);
   if (!result.success) throw new Error(result.error);
   return result;
 };
 
 const ReservationPageNew: React.FC = () => {
+  const { message } = App.useApp();
+  
   // States
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [allReservations, setAllReservations] = useState<Reservation[]>([]);
@@ -395,7 +258,7 @@ const ReservationPageNew: React.FC = () => {
         setAllReservations(sortedReservations);
       }
     } catch (error: any) {
-      console.error('خطا در دریافت همه رزروها:', error);
+      // خطا در دریافت رزروها - برای لاگ سیستم
     }
   };
 
@@ -416,11 +279,8 @@ const ReservationPageNew: React.FC = () => {
 
   // Submit new reservation
   const onFinish = async (values: any) => {
-    console.log('🔹 ثبت رزرو - values دریافتی:', JSON.stringify(values, null, 2));
-    
     // دریافت تمام مقادیر فرم
     const allFormValues = form.getFieldsValue();
-    console.log('🔹 ثبت رزرو - همه مقادیر فرم:', JSON.stringify(allFormValues, null, 2));
     
     setSubmitting(true);
     try {
@@ -442,10 +302,8 @@ const ReservationPageNew: React.FC = () => {
         status: "PENDING",
       };
 
-      console.log('🔹 ثبت رزرو - داده‌های نهایی:', JSON.stringify(reservationData, null, 2));
-      
       // بررسی اینکه همه فیلدهای اجباری پر هستند
-      const missingFields = [];
+      const missingFields: string[] = [];
       if (!reservationData.customerName) missingFields.push('نام مشتری');
       if (!reservationData.customerPhone) missingFields.push('شماره تلفن');
       if (!reservationData.persianDate) missingFields.push('تاریخ');
@@ -453,16 +311,18 @@ const ReservationPageNew: React.FC = () => {
       if (!reservationData.tableId) missingFields.push('میز');
       
       if (missingFields.length > 0) {
-        console.error('❌ فیلدهای ناقص:', missingFields);
         message.error(`فیلدهای زیر اجباری هستند: ${missingFields.join(', ')}`);
         setSubmitting(false);
         return;
       }
 
-      console.log('🚀 ارسال درخواست به API...', reservationData);
       const result = await submitReservation(reservationData);
-      console.log('✅ پاسخ API:', result);
       message.success("رزرو با موفقیت ثبت شد");
+      
+      // تنظیم selectedDate به تاریخ رزرو جدید
+      if (reservationData.persianDate) {
+        setSelectedDate(reservationData.persianDate);
+      }
       
       form.resetFields();
       setModalVisible(false);
@@ -472,7 +332,6 @@ const ReservationPageNew: React.FC = () => {
       loadReservations();
       loadAllReservations();
     } catch (err: any) {
-      console.error('❌ خطا در ثبت رزرو:', err);
       message.error(err.message || "خطا در ثبت رزرو");
     }
     setSubmitting(false);
@@ -639,13 +498,15 @@ const ReservationPageNew: React.FC = () => {
 
   // Filter reservations by date
   const todaysReservations = Array.isArray(reservations) ? reservations.filter(
-    (res) => res.persianDate === selectedDate
+    (res) => !selectedDate || res.persianDate === selectedDate
   ) : [];
 
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
-        <Spin size="large" tip="در حال بارگذاری اطلاعات رزرو..." />
+        <Spin size="large">
+          <div className="mt-4">در حال بارگذاری اطلاعات رزرو...</div>
+        </Spin>
       </div>
     );
   }
@@ -780,22 +641,21 @@ const ReservationPageNew: React.FC = () => {
                 {/* نمایش هفته جاری */}
                 <div style={{ marginBottom: '16px' }}>
                   <Title level={5} style={{ textAlign: 'center', margin: '0 0 12px 0' }}>
-                    هفته جاری
+                    ۱۰ روز آینده
                   </Title>
                   <Row gutter={8}>
                     {(() => {
                       const today = moment();
-                      const startOfWeek = today.clone().startOf('week');
-                      const weekDays = [];
+                      const weekDays: React.ReactElement[] = [];
                       
-                      for (let i = 0; i < 7; i++) {
-                        const day = startOfWeek.clone().add(i, 'days');
+                      for (let i = 0; i < 10; i++) {
+                        const day = today.clone().add(i, 'days');
                         const persianDate = day.format('jYYYY/jMM/jDD');
-                        const isToday = persianDate === getTodayPersian();
+                        const isToday = i === 0; // فقط روز اول (امروز) هست
                         const dayReservations = reservations.filter(r => r.persianDate === persianDate);
                         
                         weekDays.push(
-                          <Col span={3.43} key={i} style={{ textAlign: 'center' }}>
+                          <Col span={2.4} key={i} style={{ textAlign: 'center' }}>
                             <div 
                               style={{
                                 padding: '8px 4px',
@@ -886,189 +746,209 @@ const ReservationPageNew: React.FC = () => {
         </Row>
 
         {/* Main Content */}
-        <Tabs activeKey={activeTab} onChange={setActiveTab}>
-          <TabPane tab="رزروهای امروز" key="1">
-            <Card>
-              <div className="mb-4 flex justify-between items-center">
-                <Space>
-                  <Input
-                    placeholder="تاریخ شمسی (مثال: 1403/08/21)"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    style={{ width: 200 }}
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab}
+          items={[
+            {
+              key: "1",
+              label: "رزروهای امروز",
+              children: (
+                <Card>
+                  <div className="mb-4 flex justify-between items-center">
+                    <Space>
+                      <Input
+                        placeholder="تاریخ شمسی (مثال: 1403/08/21)"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        style={{ width: 200 }}
+                      />
+                      <Button
+                        onClick={() => setSelectedDate('')}
+                        type="default"
+                      >
+                        نمایش همه
+                      </Button>
+                      <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => setModalVisible(true)}
+                      >
+                        رزرو جدید
+                      </Button>
+                    </Space>
+                    <Button icon={<ReloadOutlined />} onClick={loadReservations}>
+                      بروزرسانی
+                    </Button>
+                  </div>
+
+                  <Table
+                    columns={reservationColumns}
+                    dataSource={todaysReservations}
+                    rowKey="id"
+                    pagination={{ pageSize: 10 }}
+                    locale={{ emptyText: "رزروی برای این تاریخ وجود ندارد" }}
                   />
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => setModalVisible(true)}
+                </Card>
+              )
+            },
+            {
+              key: "2",
+              label: "کل رزروها",
+              children: (
+                <Card>
+                  <div className="mb-4 flex justify-between items-center">
+                    <Space>
+                      <Typography.Title level={4} style={{ margin: 0 }}>
+                        تمام رزروها (مرتب بر اساس تاریخ و ساعت)
+                      </Typography.Title>
+                    </Space>
+                    <Button 
+                      icon={<ReloadOutlined />} 
+                      onClick={() => {
+                        loadReservations();
+                        loadAllReservations();
+                      }}
+                    >
+                      بروزرسانی
+                    </Button>
+                  </div>
+
+                  <Table
+                    columns={reservationColumns}
+                    dataSource={allReservations}
+                    rowKey="id"
+                    pagination={{ 
+                      pageSize: 20,
+                      showSizeChanger: true,
+                      showQuickJumper: true,
+                      showTotal: (total, range) => `${range[0]}-${range[1]} از ${total} رزرو`
+                    }}
+                    locale={{ emptyText: "رزروی وجود ندارد" }}
+                    scroll={{ x: 1200 }}
+                    expandable={{
+                      expandedRowRender: (record) => (
+                        <div style={{ margin: 0 }}>
+                          <Row gutter={16}>
+                            <Col span={8}>
+                              <strong>تاریخ رزرو:</strong> {formatPersianDate(record.reservationDate)}
+                            </Col>
+                            <Col span={8}>
+                              <strong>ساعت شروع:</strong> {formatTime(new Date(record.startTime))}
+                            </Col>
+                            <Col span={8}>
+                              <strong>ساعت پایان:</strong> {formatTime(new Date(record.endTime))}
+                            </Col>
+                          </Row>
+                          {record.notes && (
+                            <div style={{ marginTop: 8 }}>
+                              <strong>یادداشت:</strong> {record.notes}
+                            </div>
+                          )}
+                        </div>
+                      ),
+                      rowExpandable: (record) => !!(record.notes || record.startTime || record.endTime),
+                    }}
+                  />
+                </Card>
+              )
+            },
+            {
+              key: "3",
+              label: "بررسی دسترسی میزها",
+              children: (
+                <Card title="چک دسترسی میزها">
+                  <Form
+                    layout="inline"
+                    onFinish={(values) => handleCheckAvailability(values.date, values.time, values.partySize)}
+                    initialValues={{
+                      date: getTodayPersian(),
+                      time: "19:00",
+                      partySize: 4
+                    }}
                   >
-                    رزرو جدید
-                  </Button>
-                </Space>
-                <Button icon={<ReloadOutlined />} onClick={loadReservations}>
-                  بروزرسانی
-                </Button>
-              </div>
+                    <Form.Item name="date" label="تاریخ">
+                      <Input placeholder="1403/08/21" style={{ width: 120 }} />
+                    </Form.Item>
+                    <Form.Item name="time" label="ساعت">
+                      <Input placeholder="19:00" style={{ width: 80 }} />
+                    </Form.Item>
+                    <Form.Item name="partySize" label="تعداد نفرات">
+                      <InputNumber min={1} max={20} style={{ width: 80 }} />
+                    </Form.Item>
+                    <Form.Item>
+                      <Button 
+                        type="primary" 
+                        htmlType="submit"
+                        loading={checkingAvailability}
+                        icon={<SearchOutlined />}
+                      >
+                        بررسی
+                      </Button>
+                    </Form.Item>
+                  </Form>
 
-              <Table
-                columns={reservationColumns}
-                dataSource={todaysReservations}
-                rowKey="id"
-                pagination={{ pageSize: 10 }}
-                locale={{ emptyText: "رزروی برای این تاریخ وجود ندارد" }}
-              />
-            </Card>
-          </TabPane>
+                  {availability && (
+                    <div className="mt-6">
+                      <Alert
+                        message={availability.message}
+                        type={availability.availableTables.length > 0 ? "success" : "warning"}
+                        showIcon
+                        className="mb-4"
+                      />
 
-          <TabPane tab="کل رزروها" key="2">
-            <Card>
-              <div className="mb-4 flex justify-between items-center">
-                <Space>
-                  <Typography.Title level={4} style={{ margin: 0 }}>
-                    تمام رزروها (مرتب بر اساس تاریخ و ساعت)
-                  </Typography.Title>
-                </Space>
-                <Button 
-                  icon={<ReloadOutlined />} 
-                  onClick={() => {
-                    loadReservations();
-                    loadAllReservations();
-                  }}
-                >
-                  بروزرسانی
-                </Button>
-              </div>
+                      {availability.availableTables.length > 0 && (
+                        <div className="mb-6">
+                          <Title level={4}>میزهای موجود</Title>
+                          <Row gutter={[16, 16]}>
+                            {availability.availableTables.map((table) => (
+                              <Col xs={24} sm={12} md={8} lg={6} key={table.id}>
+                                <Card
+                                  size="small"
+                                  className={`border-2 ${table.isRecommended ? "border-green-500" : "border-green-300"}`}
+                                  title={`میز ${table.number}`}
+                                  extra={table.isRecommended && <Tag color="green">پیشنهادی</Tag>}
+                                >
+                                  <div className="text-center">
+                                    <div>ظرفیت: {table.capacity} نفر</div>
+                                    <div>موقعیت: {table.location}</div>
+                                    <div>نوع: {table.type === 'indoor' ? 'داخلی' : table.type === 'outdoor' ? 'بیرونی' : 'VIP'}</div>
+                                    {table.spareCapacity !== undefined && (
+                                      <div className="text-gray-500">فضای اضافی: {table.spareCapacity} نفر</div>
+                                    )}
+                                  </div>
+                                </Card>
+                              </Col>
+                            ))}
+                          </Row>
+                        </div>
+                      )}
 
-              <Table
-                columns={reservationColumns}
-                dataSource={allReservations}
-                rowKey="id"
-                pagination={{ 
-                  pageSize: 20,
-                  showSizeChanger: true,
-                  showQuickJumper: true,
-                  showTotal: (total, range) => `${range[0]}-${range[1]} از ${total} رزرو`
-                }}
-                locale={{ emptyText: "رزروی وجود ندارد" }}
-                scroll={{ x: 1200 }}
-                expandable={{
-                  expandedRowRender: (record) => (
-                    <div style={{ margin: 0 }}>
-                      <Row gutter={16}>
-                        <Col span={8}>
-                          <strong>تاریخ رزرو:</strong> {formatPersianDate(record.reservationDate)}
-                        </Col>
-                        <Col span={8}>
-                          <strong>ساعت شروع:</strong> {formatTime(new Date(record.startTime))}
-                        </Col>
-                        <Col span={8}>
-                          <strong>ساعت پایان:</strong> {formatTime(new Date(record.endTime))}
-                        </Col>
-                      </Row>
-                      {record.notes && (
-                        <div style={{ marginTop: 8 }}>
-                          <strong>یادداشت:</strong> {record.notes}
+                      {availability.suggestions.length > 0 && (
+                        <div>
+                          <Title level={4}>پیشنهادات ساعت جایگزین</Title>
+                          <List
+                            dataSource={availability.suggestions}
+                            renderItem={(suggestion) => (
+                              <List.Item>
+                                <div>
+                                  <strong>ساعت {suggestion.time}</strong> - {suggestion.availableCount} میز موجود
+                                  <div className="text-gray-500">
+                                    {suggestion.tables.map(t => `میز ${t.number}`).join(', ')}
+                                  </div>
+                                </div>
+                              </List.Item>
+                            )}
+                          />
                         </div>
                       )}
                     </div>
-                  ),
-                  rowExpandable: (record) => !!(record.notes || record.startTime || record.endTime),
-                }}
-              />
-            </Card>
-          </TabPane>
-
-          <TabPane tab="بررسی دسترسی میزها" key="3">
-            <Card title="چک دسترسی میزها">
-              <Form
-                layout="inline"
-                onFinish={(values) => handleCheckAvailability(values.date, values.time, values.partySize)}
-                initialValues={{
-                  date: getTodayPersian(),
-                  time: "19:00",
-                  partySize: 4
-                }}
-              >
-                <Form.Item name="date" label="تاریخ">
-                  <Input placeholder="1403/08/21" style={{ width: 120 }} />
-                </Form.Item>
-                <Form.Item name="time" label="ساعت">
-                  <Input placeholder="19:00" style={{ width: 80 }} />
-                </Form.Item>
-                <Form.Item name="partySize" label="تعداد نفرات">
-                  <InputNumber min={1} max={20} style={{ width: 80 }} />
-                </Form.Item>
-                <Form.Item>
-                  <Button 
-                    type="primary" 
-                    htmlType="submit"
-                    loading={checkingAvailability}
-                    icon={<SearchOutlined />}
-                  >
-                    بررسی
-                  </Button>
-                </Form.Item>
-              </Form>
-
-              {availability && (
-                <div className="mt-6">
-                  <Alert
-                    message={availability.message}
-                    type={availability.availableTables.length > 0 ? "success" : "warning"}
-                    showIcon
-                    className="mb-4"
-                  />
-
-                  {availability.availableTables.length > 0 && (
-                    <div className="mb-6">
-                      <Title level={4}>میزهای موجود</Title>
-                      <Row gutter={[16, 16]}>
-                        {availability.availableTables.map((table) => (
-                          <Col xs={24} sm={12} md={8} lg={6} key={table.id}>
-                            <Card
-                              size="small"
-                              className={`border-2 ${table.isRecommended ? "border-green-500" : "border-green-300"}`}
-                              title={`میز ${table.number}`}
-                              extra={table.isRecommended && <Tag color="green">پیشنهادی</Tag>}
-                            >
-                              <div className="text-center">
-                                <div>ظرفیت: {table.capacity} نفر</div>
-                                <div>موقعیت: {table.location}</div>
-                                <div>نوع: {table.type === 'indoor' ? 'داخلی' : table.type === 'outdoor' ? 'بیرونی' : 'VIP'}</div>
-                                {table.spareCapacity !== undefined && (
-                                  <div className="text-gray-500">فضای اضافی: {table.spareCapacity} نفر</div>
-                                )}
-                              </div>
-                            </Card>
-                          </Col>
-                        ))}
-                      </Row>
-                    </div>
                   )}
-
-                  {availability.suggestions.length > 0 && (
-                    <div>
-                      <Title level={4}>پیشنهادات ساعت جایگزین</Title>
-                      <List
-                        dataSource={availability.suggestions}
-                        renderItem={(suggestion) => (
-                          <List.Item>
-                            <div>
-                              <strong>ساعت {suggestion.time}</strong> - {suggestion.availableCount} میز موجود
-                              <div className="text-gray-500">
-                                {suggestion.tables.map(t => `میز ${t.number}`).join(', ')}
-                              </div>
-                            </div>
-                          </List.Item>
-                        )}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </Card>
-          </TabPane>
-        </Tabs>
+                </Card>
+              )
+            }
+          ]}
+        />
 
         {/* New Reservation Modal */}
         <Modal
@@ -1160,9 +1040,9 @@ const ReservationPageNew: React.FC = () => {
                       name="persianDate"
                       rules={[{ required: true, message: "تاریخ را وارد کنید" }]}
                     >
-                      <PersianDatePicker 
-                        placeholder="انتخاب تاریخ"
-                        onChange={(date) => {
+                      <PersianCalendar 
+                        placeholder="انتخاب تاریخ رزرو"
+                        onChange={(date: string) => {
                           form.setFieldsValue({ persianDate: date });
                         }}
                       />
@@ -1306,4 +1186,13 @@ const ReservationPageNew: React.FC = () => {
   );
 };
 
-export default ReservationPageNew;
+// Wrap component with App provider for message context
+const ReservationPageWithProvider: React.FC = () => {
+  return (
+    <App>
+      <ReservationPageNew />
+    </App>
+  );
+};
+
+export default ReservationPageWithProvider;

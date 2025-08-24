@@ -1,0 +1,476 @@
+/* 🎨 Custom Persian Calendar - Compact Professional Design */
+
+.calendarContainer {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  font-family: 'Vazirmatn', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  direction: rtl;
+}
+
+.calendarInput {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: white;
+  color: #495057;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  outline: none;
+}
+
+.calendarInput:hover {
+  border-color: #007bff;
+}
+
+.calendarInput:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+}
+
+.calendarInput.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #007bff;
+  font-size: 16px;
+}
+
+.clearIcon {
+  position: absolute;
+  left: 36px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6c757d;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.clearIcon:hover {
+  color: #dc3545;
+}
+
+.calendarInput:hover + .clearIcon,
+.clearIcon:hover {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 🎭 Calendar Dropdown */
+.calendarDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  overflow: hidden;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 📅 Calendar Header - Compact Design */
+.calendarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  gap: 12px;
+}
+
+.headerSection {
+  position: relative;
+  flex: 1;
+}
+
+.headerDropdown {
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 10px 16px;
+  text-align: center;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  color: #495057;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.headerDropdown:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+  color: #007bff;
+}
+
+/* Month Selector */
+.monthSelector {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.monthItem {
+  padding: 12px 8px;
+  border: none;
+  border-radius: 8px;
+  background: #f8f9fa;
+  color: #495057;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.monthItem:hover {
+  background: #e7f3ff;
+  color: #007bff;
+  transform: translateY(-1px);
+}
+
+.monthItem.selected {
+  background: #007bff;
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+/* Year Selector */
+.yearSelector {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+.yearNavigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.yearNavBtn {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6c757d;
+  transition: all 0.2s ease;
+}
+
+.yearNavBtn:hover {
+  background: #007bff;
+  border-color: #007bff;
+  color: white;
+}
+
+.yearRange {
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+}
+
+.yearGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.yearItem {
+  padding: 10px 8px;
+  border: none;
+  border-radius: 6px;
+  background: #f8f9fa;
+  color: #495057;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.yearItem:hover {
+  background: #e7f3ff;
+  color: #007bff;
+  transform: translateY(-1px);
+}
+
+.yearItem.selected {
+  background: #007bff;
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ⚡ Quick Actions - Compact Design */
+.quickActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  gap: 8px;
+}
+
+.mainActions {
+  display: flex;
+  gap: 8px;
+}
+
+.quickActionBtn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.todayButton {
+  background: #007bff;
+  color: white;
+  border: 1px solid #007bff;
+}
+
+.todayButton:hover {
+  background: #0056b3;
+  border-color: #0056b3;
+  transform: translateY(-1px);
+}
+
+.clearButton {
+  background: #6c757d;
+  color: white;
+  border: 1px solid #6c757d;
+}
+
+.clearButton:hover {
+  background: #545b62;
+  border-color: #545b62;
+  transform: translateY(-1px);
+}
+
+.closeButton {
+  background: #dc3545;
+  color: white;
+  border: 1px solid #dc3545;
+}
+
+.closeButton:hover {
+  background: #c82333;
+  border-color: #c82333;
+  transform: translateY(-1px);
+}
+
+/* 📅 Calendar Grid - Compact & Clean */
+.weekDays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.weekDay {
+  padding: 8px 4px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 12px;
+  color: #6c757d;
+  background: #f8f9fa;
+}
+
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: white;
+}
+
+.dayButton {
+  min-height: 36px;
+  border: none;
+  background: transparent;
+  color: #495057;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.dayButton:hover {
+  background: #e7f3ff;
+  color: #007bff;
+}
+
+.dayButton.selected {
+  background: #007bff;
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+}
+
+.dayButton.today {
+  background: #28a745;
+  color: white;
+  font-weight: 600;
+}
+
+.dayButton.today:hover {
+  background: #218838;
+}
+
+.dayButton.holiday {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.dayButton.weekend {
+  color: #dc3545;
+}
+
+.dayButton.disabled {
+  color: #ced4da;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.dayButton.disabled:hover {
+  background: transparent;
+  color: #ced4da;
+}
+
+.dayButton.otherMonth {
+  color: #adb5bd;
+  opacity: 0.7;
+}
+
+/* 📱 Responsive Design */
+@media (max-width: 768px) {
+  .calendarContainer {
+    max-width: 100%;
+  }
+  
+  .calendarDropdown {
+    left: -8px;
+    right: -8px;
+  }
+  
+  .calendarHeader {
+    padding: 16px;
+  }
+  
+  .dayButton {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+/* 🌙 Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .calendarInput {
+    background: #1f1f1f;
+    color: #e6e6e6;
+    border-color: #404040;
+  }
+  
+  .calendarDropdown {
+    background: #2d2d2d;
+    border-color: #404040;
+  }
+  
+  .calendarHeader {
+    background: #1f1f1f;
+    color: #e6e6e6;
+    border-color: #404040;
+  }
+  
+  .quickActions {
+    background: #1f1f1f;
+    border-color: #404040;
+  }
+  
+  .dayButton {
+    color: #e6e6e6;
+  }
+  
+  .weekDay {
+    background: #1f1f1f;
+    color: #999;
+  }
+}

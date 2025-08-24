@@ -22,15 +22,13 @@ export const useTablesStore = create<TablesState>((set, get) => ({
   fetchTables: async () => {
     set({ loading: true });
     try {
-      const response = await fetch('/api/tables');
+      const response = await fetch('/api/tables/public');
       const result = await response.json();
       
       console.log('📋 Tables API response:', result);
       
-      if (result.success && result.data && result.data.tables) {
-        set({ tables: result.data.tables });
-      } else if (result.success && Array.isArray(result.data)) {
-        set({ tables: result.data });
+      if (result.success && result.tables) {
+        set({ tables: result.tables });
       } else {
         console.error('Invalid tables response:', result);
         set({ tables: [] }); // Ensure tables is always an array
@@ -47,7 +45,7 @@ export const useTablesStore = create<TablesState>((set, get) => ({
   addTable: async (tableData) => {
     set({ loading: true });
     try {
-      const response = await fetch('/api/tables', {
+      const response = await fetch('/api/tables/public', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -57,9 +55,9 @@ export const useTablesStore = create<TablesState>((set, get) => ({
 
       const result = await response.json();
 
-      if (result.success && result.data) {
+      if (result.success && result.table) {
         set(state => ({ 
-          tables: [...state.tables, result.data],
+          tables: [...state.tables, result.table],
           loading: false 
         }));
         return Promise.resolve();
@@ -76,7 +74,7 @@ export const useTablesStore = create<TablesState>((set, get) => ({
   updateTable: async (id, updates) => {
     set({ loading: true });
     try {
-      const response = await fetch('/api/tables', {
+      const response = await fetch(`/api/tables/public/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -86,10 +84,10 @@ export const useTablesStore = create<TablesState>((set, get) => ({
 
       const result = await response.json();
 
-      if (result.success && result.data) {
+      if (result.success && result.table) {
         set(state => ({
-          tables: state.tables.map(table => 
-            table.id === id ? result.data : table
+          tables: state.tables.map(table =>
+            table.id === id ? result.table : table
           ),
           loading: false
         }));
@@ -107,11 +105,9 @@ export const useTablesStore = create<TablesState>((set, get) => ({
   deleteTable: async (id) => {
     set({ loading: true });
     try {
-      const response = await fetch(`/api/tables?id=${id}`, {
+      const response = await fetch(`/api/tables/public/${id}`, {
         method: 'DELETE',
-      });
-
-      const result = await response.json();
+      });      const result = await response.json();
 
       if (result.success) {
         set(state => ({

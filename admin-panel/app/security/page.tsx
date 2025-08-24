@@ -11,37 +11,41 @@ export default function SecurityPage() {
     fetchBackupConfigs, 
     fetchIncidents, 
     generateSecurityReport,
-    executeBackup 
+    executeBackup,
+    fetchDashboardStats
   } = useSecurity();
   
   const [settings, setSettings] = useState<any>(null);
   const [backups, setBackups] = useState<any[]>([]);
   const [incidents, setIncidents] = useState<any[]>([]);
   const [report, setReport] = useState<any>(null);
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [show2FASetup, setShow2FASetup] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
-      const [settingsData, backupsData, incidentsData, reportData] = await Promise.all([
+      const [settingsData, backupsData, incidentsData, reportData, statsData] = await Promise.all([
         fetchSecuritySettings(),
         fetchBackupConfigs(), 
         fetchIncidents(),
-        generateSecurityReport()
+        generateSecurityReport(),
+        fetchDashboardStats()
       ]);
       setSettings(settingsData);
       setBackups(backupsData);
       setIncidents(incidentsData);
       setReport(reportData);
+      setDashboardStats(statsData);
     };
     loadData();
   }, []);
 
   const stats = [
-    { title: 'امنیت کلی', value: 85, suffix: '%', status: 'success' },
-    { title: 'حوادث فعال', value: incidents?.filter(i => i.status === 'open').length || 0, status: 'warning' },
-    { title: 'پشتیبان‌گیری امروز', value: 3, status: 'success' },
-    { title: 'ورود ناموفق', value: 12, status: 'error' }
+    { title: 'امنیت کلی', value: dashboardStats?.securityScore || 85, suffix: '%', status: 'success' },
+    { title: 'حوادث فعال', value: dashboardStats?.openIncidents || 0, status: 'warning' },
+    { title: 'پشتیبان‌گیری امروز', value: dashboardStats?.activeBackups || 0, status: 'success' },
+    { title: 'ورود ناموفق', value: dashboardStats?.recentFailedLogins || 0, status: 'error' }
   ];
 
   const backupColumns = [

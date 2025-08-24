@@ -43,11 +43,91 @@ next-env.d.ts
 
 # temporary test files
 add-sample-orders.js
-check-orders.js
-create-fixed-orders.js
-create-test-data.js
+check-*.js
+create-*.js
 debug-*.js
 full-db-check.js
+test-*.js
+
+# backup and temporary files
+*-backup.*
+*-new.*
+*-old.*
+*-temp.*
+*-copy.*
+*.backup
+*.bak
+
+# empty route files that get auto-generated
+app/api/**/*route-new.ts
+app/api/**/*route.ts.bak
+app/api/**/*route-backup.ts
+app/api/**/*route-old.ts
+app/api/**/*route-temp.ts
+
+# auto-generated empty files
+**/*-new.tsx
+**/*-backup.tsx
+**/*-old.tsx
+**/*-temp.tsx
+**/*-copy.tsx
+
+# prevent auto-creation of specific empty files
+app/api/ai-training/models-db/route-new.ts
+app/api/cashier/route.ts
+app/api/cashier/route-new.ts
+app/api/cashier/daily-report/route.ts
+app/api/cashier/registers/route.ts
+app/api/cashier/transactions/route.ts
+app/api/kitchen/stats/route.ts
+app/api/inventory/categories/[id]/route.ts
+
+# empty component files
+components/cashier/CashierOrderCard.tsx
+components/cashier/CashierPage-backup.tsx
+components/cashier/PendingOrderCard.tsx
+components/kitchen/KitchenStatsCards.tsx
+components/kitchen/KitchenTicketCard.tsx
+components/customers/CreateCustomerForm-new.tsx
+components/common/PersianDatePicker/index.tsx
+
+# test files and folders
+app/calendar-test/
+**/__tests__/
+**/*.test.*
+**/*.spec.*
+test-*.html
+test-*.ts
+*-test.*
+quick-*.js
+reset-*.js
+seed-*.js
+temp/
+*-temp.*
+*-backup.*
+*-old.*
+*.tmp
+api-endpoint-*.js
+duplicate-*.js
+file-*.js
+project-*.js
+*.sh
+*-new.tsx
+*-enhanced.tsx
+next.config.*.js
+middleware-*.ts
+
+# development reports and documentation
+*-REPORT.md
+*-STATUS.md
+*-CHECKLIST.md
+MIGRATION.md
+6phaze.md
+final-pro.md
+BUG-FIXES-*.md
+DATABASE-FIXES-*.md
+COMPLETION-*.md
+SYSTEM-*.md
 
 # Prevent duplicate files from being created
 *_backup.*
@@ -58,16 +138,71 @@ full-db-check.js
 *_copy.*
 *_temp.*
 *_duplicate.*
+*_enhanced.*
 page_backup.*
 page_old.*
 page_new.*
 page_simple.*
+page_enhanced.*
+page-backup.*
+page-old.*
+page-new.*
+page-simple.*
+page-enhanced.*
 route_backup.*
 route_old.*
 route_new.*
 route_simple.*
 route_persian.*
 route_test.*
+route-backup.*
+route-old.*
+route-new.*
+route-simple.*
+route-persian.*
+route-test.*
+route-temp.*
+
+# Configuration file duplicates
+next.config.*.js
+middleware-*.ts
+tsconfig.*.json
+
+# Debug and monitoring files
+check-*.js
+check-*.sh
+debug-*.js
+file-*.js
+file-*.txt
+duplicate-*.js
+project-*.js
+*-prevention.*
+api-endpoint-tester.*
+comprehensive-test-*
+database-integration-test.*
+frontend-integration-test.*
+
+# Test files and directories
+test-*.*
+*-test.*
+quick-*.*
+reset-*.*
+create-test*.*
+create-*test*.*
+seed-*.*
+simple-*.*
+/temp/
+/test-results/
+test/
+tests/
+__tests__/
+*.test.*
+*.spec.*
+
+# API test endpoints
+/app/api/test*/
+/app/api/*test*/
+/app/api/debug*/
 
 # Empty directories and files that shouldn't be committed
 **/.empty

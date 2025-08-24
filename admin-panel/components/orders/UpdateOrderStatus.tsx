@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Modal, Form, Select, Button, message, Input } from 'antd'
+import { Modal, Form, Select, Button, Input, App } from 'antd'
 import { CheckCircleOutlined, ClockCircleOutlined, FireOutlined, TruckOutlined } from '@ant-design/icons'
 
 const { Option } = Select
@@ -15,6 +15,7 @@ interface UpdateOrderStatusProps {
 }
 
 const UpdateOrderStatus: React.FC<UpdateOrderStatusProps> = ({ order, visible, onCancel, onSuccess }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
 
@@ -31,7 +32,7 @@ const UpdateOrderStatus: React.FC<UpdateOrderStatusProps> = ({ order, visible, o
   const handleSubmit = async (values: any) => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/orders/${order.id}/status`, {
+      const response = await fetch(`/api/orders/order/${order.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
